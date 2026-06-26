@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Portal Login</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #f4f8f9;
+      --bg-gradient: radial-gradient(circle at 10% 20%, #f4f8f9 0%, #e6eff2 90%);
+      --primary: #09090b;
+      --primary-hover: #18181b;
+      --accent: #d4fc34;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text-main: #09090b;
+      --text-muted: #71717a;
+      --glass-bg: #ffffff;
+      --glass-border: rgba(9, 9, 11, 0.08);
+      --font-sans: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-dark);
+      background-image: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    /* Background glows */
+    .glow {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(212, 252, 52, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-1 { top: -100px; left: -100px; }
+    .glow-2 { bottom: -150px; right: -100px; }
+
+    /* Login Card container */
+    .login-container {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 440px;
+      padding: 40px;
+      box-shadow: 0 20px 25px -5px rgba(9, 9, 11, 0.05), 0 10px 10px -5px rgba(9, 9, 11, 0.02);
+      z-index: 10;
+      position: relative;
+      animation: cardFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes cardFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Logo & Header */
+    .logo-section {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-icon {
+      font-size: 3rem;
+      display: inline-block;
+      margin-bottom: 12px;
+      animation: logoPulse 2s infinite ease-in-out;
+    }
+
+    @keyframes logoPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .logo-section h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .logo-section p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Form controls */
+    .form-group {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-wrapper span {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.1rem;
+      color: var(--text-muted);
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 12px 16px 12px 42px;
+      background-color: rgba(241, 245, 249, 0.9);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(9, 9, 11, 0.05);
+      background-color: #ffffff;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--primary);
+      border: none;
+      border-radius: 9999px;
+      color: white;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(9, 9, 11, 0.15);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(9, 9, 11, 0.25);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Error Banner */
+    .error-banner {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #b91c1c;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+      display: none;
+      animation: shake 0.3s ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    /* OTP Verification Screen styling */
+    .otp-screen {
+      display: none;
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+
+    .otp-inputs {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 24px 0;
+    }
+
+    .otp-box {
+      width: 48px;
+      height: 48px;
+      text-align: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      background-color: rgba(241, 245, 249, 0.9);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      border-radius: 10px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .otp-box:focus {
+      border-color: var(--success);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+      background-color: #ffffff;
+    }
+
+    /* Simulated OTP Toast */
+    .otp-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #ffffff;
+      border: 1px solid var(--primary);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      z-index: 10000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      max-width: 380px;
+    }
+
+    .otp-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .otp-toast-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary);
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .otp-toast-code {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--success);
+      letter-spacing: 1px;
+    }
+
+    .btn-copy-otp {
+      background: rgba(0,0,0,0.04);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-copy-otp:hover {
+      background: rgba(0,0,0,0.08);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="glow glow-1"></div>
+  <div class="glow glow-2"></div>
+
+  <!-- Login Container -->
+  <div class="login-container">
+    
+    <!-- Credentials Section -->
+    <div id="credentials-section">
+      <div class="logo-section">
+        <span class="logo-icon">📝</span>
+        <h1>ShowAnswer</h1>
+        <p>Quiz Setup & Scanner — Teacher Portal</p>
+      </div>
+
+      <div class="error-banner" id="error-banner">Invalid credentials. Please try again.</div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <div class="input-wrapper">
+            <span>👤</span>
+            <input type="text" id="username" placeholder="e.g. teacher" required autocomplete="off" autocapitalize="none" autocorrect="off">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <div class="input-wrapper">
+            <span>🔒</span>
+            <input type="password" id="password" placeholder="••••••••" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn">Proceed to Verification ➡</button>
+      </form>
+    </div>
+
+    <!-- OTP Verification Section -->
+    <div id="otp-section" class="otp-screen">
+      <div class="logo-section">
+        <span class="logo-icon">🔐</span>
+        <h1>Enter Verification Code</h1>
+        <p>A simulated MFA code was generated for security validation.</p>
+      </div>
+
+      <div class="error-banner" id="otp-error-banner">Invalid or expired OTP. Please try again.</div>
+
+      <form id="otp-form">
+        <div class="form-group">
+          <label style="text-align: center;">MFA One-Time Passcode</label>
+          <div class="input-wrapper" style="margin: 20px 0;">
+            <span style="left: 14px;">🔑</span>
+            <input type="text" id="otp-input" placeholder="Enter 6-digit passcode" pattern="[0-9]{6}" inputmode="numeric" maxlength="6" style="padding-left: 42px; text-align: center; letter-spacing: 6px; font-size: 1.3rem; font-weight: 700;" required autocomplete="off">
+          </div>
+        </div>
+
+        <button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">Verify & Log In ✓</button>
+        <button type="button" id="btn-back" class="btn" style="background: transparent; border: 1px solid var(--glass-border); box-shadow: none; margin-top: 12px; color: var(--text-muted);">⬅ Back</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Simulated OTP Toast -->
+  <div class="otp-toast" id="otp-toast">
+    <div style="flex-grow: 1;">
+      <div class="otp-toast-title">Simulated MFA Passcode</div>
+      <div class="otp-toast-code" id="otp-toast-code">123456</div>
+    </div>
+    <button class="btn-copy-otp" id="btn-copy-otp">Copy</button>
+  </div>
+
+  <script src="login.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Teacher') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Teacher') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Quiz Setup</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- PDF.js library for client-side PDF extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    .question-layout {
+      max-width: 720px;
+      margin: 40px auto;
+      animation: fadeIn 0.4s ease-out;
+    }
+    .question-card {
+      margin-bottom: 24px;
+      border-left: 5px solid var(--primary);
+    }
+    .option-group {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .option-indicator {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 1.1rem;
+      user-select: none;
+    }
+    .indicator-a { background-color: var(--color-a); }
+    .indicator-b { background-color: var(--color-b); }
+    .indicator-c { background-color: var(--color-c); }
+    .indicator-d { background-color: var(--color-d); }
+    
+    textarea.question-input {
+      font-family: var(--font-sans);
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 1.05rem;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s ease;
+      width: 100%;
+      resize: vertical;
+      min-height: 70px;
+    }
+    textarea.question-input:focus {
+      border-color: var(--primary);
+      background-color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    .phase-container {
+      animation: slideUp 0.3s ease-out;
+    }
+
+    /* Drop Zone styling */
+    .drop-zone {
+      border: 2px dashed var(--primary);
+      background: rgba(99, 102, 241, 0.03);
+      padding: 24px;
+      text-align: center;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      background: rgba(99, 102, 241, 0.08);
+      border-color: #4f46e5;
+    }
+    .drop-zone-icon {
+      font-size: 2.2rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .hidden {
+      display: none !important;
+    }
+    
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20000;
+    }
+    .modal-card {
+      background: white;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 680px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    }
+    .q-item-row {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .q-item-row:hover {
+      border-color: var(--primary);
+      background-color: rgba(99, 102, 241, 0.02);
+    }
+    .q-item-row.selected {
+      border-color: var(--primary);
+      background-color: rgba(99, 102, 241, 0.05);
+    }
+    .q-item-checkbox {
+      margin-top: 4px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container" class="question-layout">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">📝</span>
+        <h1>ShowAnswer <span class="badge">Teacher Portal</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-desc">Create Live Graded Multiple-Choice Quizzes</div>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
+      </div>
+    </header>
+
+    <!-- PHASE 1: QUESTION COUNT SELECTOR -->
+    <div id="phase-1-container" class="card phase-container">
+      <h2 class="card-title" style="margin-bottom: 12px;">Start a New Quiz</h2>
+      <p class="card-subtitle" style="margin-bottom: 24px;">Specify the number of questions in your quiz, or upload a question bank to populate them instantly.</p>
+      
+      <!-- Upload Zone -->
+      <div id="qbank-drop-zone" class="drop-zone">
+        <span class="drop-zone-icon">📚</span>
+        <p style="margin: 0; font-weight: 600; color: var(--text-main); font-size: 1.05rem;">Drag & drop Question Bank (PDF, JSON, TXT, CSV) here</p>
+        <span style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-top: 4px;">or click to browse from your computer (Hold Ctrl to select multiple)</span>
+        <input type="file" id="qbank-file-input" accept=".pdf,.json,.txt,.csv" class="hidden" multiple>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 24px;">
+        <label for="question-count" style="font-size: 1rem; margin-bottom: 8px; font-weight: 600;">How many questions in the quiz?</label>
+        <input type="number" id="question-count" min="1" max="25" value="5" style="font-size: 1.1rem; padding: 12px; width: 100%; max-width: 200px;">
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="btn-goto-phase-2" class="btn btn-primary btn-lg" style="padding: 12px 28px;">Next: Enter Questions ➡</button>
+      </div>
+    </div>
+
+    <!-- SAVED QUIZZES PANEL -->
+    <div id="saved-quizzes-container" class="card phase-container" style="margin-top: 24px;">
+      <h2 class="card-title" style="margin-bottom: 12px;">📚 Saved Quizzes</h2>
+      <p class="card-subtitle" style="margin-bottom: 16px;">Quickly load and activate pre-configured quizzes (e.g. Monday, Tuesday, Quiz 1) without re-creating them.</p>
+      
+      <div class="table-container">
+        <table style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="padding: 12px 16px;">Quiz Name</th>
+              <th style="text-align: right; width: 220px; padding: 12px 16px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="saved-quizzes-tbody">
+            <tr class="empty-row">
+              <td colspan="2" style="text-align: center; color: var(--text-muted); padding: 24px 16px; font-style: italic;">No saved quizzes found. Upload files above to populate this list.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PHASE 2: QUESTIONS DETAILS ENTRY FORM -->
+    <div id="phase-2-container" class="phase-container hidden">
+      <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <button id="btn-back-to-phase-1" class="btn btn-outline btn-sm">⬅ Back to Count</button>
+        <span class="badge" id="quiz-count-badge" style="background-color: var(--text-muted); font-size: 0.85rem; padding: 4px 12px;">0 Questions</span>
+      </div>
+
+      <form id="quiz-form">
+        <!-- Dynamic Questions cards will be injected here -->
+        <div id="questions-cards-container"></div>
+
+        <!-- Submit Bar -->
+        <div class="card" style="display: flex; gap: 12px; justify-content: flex-end; align-items: center; padding: 16px 24px;">
+          <button type="submit" class="btn btn-success btn-lg" style="padding: 12px 36px; font-size: 1.1rem; box-shadow: var(--shadow-md);">🚀 Generate Quiz & Start</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Question Selector Modal -->
+  <div id="qbank-modal" class="modal-overlay hidden" style="font-family: 'Outfit', sans-serif;">
+    <div class="modal-card">
+      <div class="modal-header" style="padding: 20px 24px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between;">
+        <h3 style="margin: 0; font-size: 1.3rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+          <span>📚 Question Selector</span>
+          <span id="modal-q-count" class="badge" style="background: #3b82f6; color: white; font-size: 0.8rem; padding: 3px 8px; border-radius: 6px;">0 Found</span>
+        </h3>
+        <button id="btn-close-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #94a3b8; transition: color 0.2s;">&times;</button>
+      </div>
+      
+      <div class="modal-body" id="modal-questions-list" style="padding: 20px 24px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 16px;">
+        <!-- Question list items dynamically injected -->
+      </div>
+      
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+        <div style="font-size: 0.9rem; color: #64748b; font-weight: 500;">
+          Selected: <span id="modal-selected-count" style="color: #3b82f6; font-weight: 700;">0</span> / <span id="modal-target-count">5</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button id="btn-modal-select-random" class="btn btn-outline" style="padding: 8px 16px; font-size: 0.9rem;">Select Random</button>
+          <button id="btn-modal-import" class="btn btn-primary" style="padding: 8px 20px; font-size: 0.9rem;" disabled>Import Questions</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="question.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+</html>

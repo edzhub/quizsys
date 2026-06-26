@@ -1,0 +1,53 @@
+# Ignore all build outputs, packages, local databases, and temporary files in rapidQuiz project
+
+# === General / OS ===
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+*.tmp
+*.temp
+*.hprof
+
+# === IDEs / Editors ===
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# === Python / Node.js / Databases ===
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+node_modules/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+quizSys/QuestionScannerProject/debug_crops/
+quizSys/QuestionScannerProject/debug_*.jpg
+quizSys/QuestionScannerProject/debug_*.png
+
+# === Flutter / Android ===
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+local.properties
+.gradle/
+**/android/app/build/
+**/android/.gradle/
+**/android/local.properties
+
+# === Compiled / Package Binaries ===
+# To prevent pushing large compiled APKs to Github (standard practice)
+*.apk
+

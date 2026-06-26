@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Teacher') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Teacher') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Live Scanner</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Screen Content -->
+  <div id="app-container" class="screen-only">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">📹</span>
+        <h1>ShowAnswer <span class="badge">Teacher Portal</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-desc">
+          <span id="sync-status" class="sync-indicator unsynced">🔴 Standalone Mode</span>
+        </div>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <a href="index.html" class="tab-btn" style="text-decoration: none;">🏠 Switch Module</a>
+      <a href="question.html" class="tab-btn" style="text-decoration: none;">📝 Setup AR Quiz</a>
+      <a href="scanner.html" class="tab-btn active" style="text-decoration: none;">📹 Scan AR Cards</a>
+    </div>
+
+    <!-- Navigation link back to Question Setup -->
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <div style="display: flex; gap: 8px;">
+      </div>
+      
+      <!-- Quiz Navigation Controls -->
+      <div id="quiz-navigation" class="hidden" style="display: flex; gap: 8px; align-items: center;">
+        <button id="btn-next-question" class="btn btn-primary" style="padding: 6px 20px; font-weight: 600; font-size: 0.95rem; box-shadow: var(--shadow-sm);">Next Question ➡</button>
+      </div>
+
+      <span id="classroom-hub-status" class="badge" style="background-color: var(--text-muted); cursor: pointer;" title="Ensure CardGeneratorProject is running to sync roster" onclick="window.open('http://' + window.location.hostname + ':8000')">Class Roster (Port 8000)</span>
+    </div>
+
+    <!-- Active Question Card -->
+    <div id="active-question-card" class="card hidden" style="margin-bottom: 24px; padding: 18px 24px;">
+      <h3 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: var(--primary); letter-spacing: 0.5px;"><span id="active-question-index">ACTIVE POLL QUESTION</span>:</h3>
+      <h2 id="active-question-text" style="font-size: 1.4rem; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.3px;"></h2>
+      <div class="options-preview-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+        <div class="option-pill" style="border-left: 4px solid var(--color-a); background-color: var(--bg-input); padding: 10px 14px; border-radius: 8px; font-weight: 600; display: flex; gap: 8px; box-shadow: var(--shadow-sm);">
+          <span style="color: var(--color-a);">A:</span> <span id="active-opt-a" style="font-weight: 400; color: var(--text-main);">-</span>
+        </div>
+        <div class="option-pill" style="border-left: 4px solid var(--color-b); background-color: var(--bg-input); padding: 10px 14px; border-radius: 8px; font-weight: 600; display: flex; gap: 8px; box-shadow: var(--shadow-sm);">
+          <span style="color: var(--color-b);">B:</span> <span id="active-opt-b" style="font-weight: 400; color: var(--text-main);">-</span>
+        </div>
+        <div class="option-pill" style="border-left: 4px solid var(--color-c); background-color: var(--bg-input); padding: 10px 14px; border-radius: 8px; font-weight: 600; display: flex; gap: 8px; box-shadow: var(--shadow-sm);">
+          <span style="color: var(--color-c);">C:</span> <span id="active-opt-c" style="font-weight: 400; color: var(--text-main);">-</span>
+        </div>
+        <div class="option-pill" style="border-left: 4px solid var(--color-d); background-color: var(--bg-input); padding: 10px 14px; border-radius: 8px; font-weight: 600; display: flex; gap: 8px; box-shadow: var(--shadow-sm);">
+          <span style="color: var(--color-d);">D:</span> <span id="active-opt-d" style="font-weight: 400; color: var(--text-main);">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN SCANNIG INTERFACE -->
+    <div class="grid-scanner">
+      
+      <!-- Camera Feed Frame -->
+      <div class="card card-scanner-viewport">
+        
+        <!-- Toggle Camera Source (Webcam vs IP Camera) -->
+        <div class="camera-source-picker">
+          <label class="radio-group">
+            <input type="radio" name="camera-source-type" value="webcam" checked>
+            📹 Local Webcam
+          </label>
+          <label class="radio-group">
+            <input type="radio" name="camera-source-type" value="ipcamera">
+            📱 Phone IP Camera
+          </label>
+        </div>
+
+        <div class="scanner-controls-bar">
+          <!-- Local Webcam Controls -->
+          <div id="webcam-controls" class="select-group">
+            <div class="select-group" style="margin-right: 12px;">
+              <label for="camera-select">Camera:</label>
+              <select id="camera-select"><option value="">Loading cameras...</option></select>
+            </div>
+            <div class="select-group">
+              <label for="res-select">Res:</label>
+              <select id="res-select">
+                <option value="1080p">1920×1080 (Ideal)</option>
+                <option value="720p" selected>1280×720 (Balanced)</option>
+                <option value="480p">640×480 (Low CPU)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Phone IP Camera Controls -->
+          <div id="ipcamera-controls" class="ip-camera-input-container hidden" style="flex-grow: 1; margin-bottom: 0;">
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <input type="text" id="ip-camera-url" placeholder="e.g. 192.168.1.50:8080/video or http://192.168.1.50/mjpeg" style="flex-grow: 1;">
+            </div>
+          </div>
+
+
+          <div class="button-group">
+            <button id="start-scan-btn" class="btn btn-success">▶ Start Scanner</button>
+            <button id="stop-scan-btn" class="btn btn-danger btn-sm hidden">🛑 Stop</button>
+          </div>
+        </div>
+
+        <!-- The Camera Feed and Overlapping Canvas -->
+        <div class="video-container">
+          <!-- Webcam feed element -->
+          <video id="webcam-video" autoplay playsinline muted class="hidden"></video>
+          
+          <!-- IP Camera stream rendering element (handles MJPEG streams cleanly without canvas taints if CORS configured) -->
+          <img id="ip-camera-img" class="hidden" alt="IP Stream Feed" style="width: 100%; height: 100%; object-fit: cover;">
+          
+          <!-- Screen overlays -->
+          <canvas id="overlay-canvas"></canvas>
+          <canvas id="hidden-process-canvas" class="hidden-canvas"></canvas>
+          
+          <!-- Offline screen placeholder -->
+          <div id="scanner-placeholder" class="scanner-placeholder">
+            <span class="placeholder-icon">📷</span>
+            <p>Scanner is offline. Click <strong>Start Scanner</strong> above.</p>
+          </div>
+        </div>
+        
+        <div class="scanner-details-bar">
+          <span id="scanner-status" class="status-indicator offline">Scanner Offline</span>
+          <span id="fps-display">Display: -- fps | Det: -- fps</span>
+        </div>
+      </div>
+
+      <!-- Poll Tally & Live Analytics -->
+      <div class="card card-scanner-sidebar">
+        <h2 class="card-title">Tally & Live Analytics</h2>
+
+        <!-- Bar Charts -->
+        <div class="tally-bar-chart-container">
+          <div class="chart-bar-row">
+            <span class="bar-label green-text">A</span>
+            <div class="bar-track"><div id="bar-a" class="bar-fill green-bg" style="width: 0%"></div></div>
+            <span id="count-a" class="bar-val">0</span>
+          </div>
+          <div class="chart-bar-row">
+            <span class="bar-label blue-text">B</span>
+            <div class="bar-track"><div id="bar-b" class="bar-fill blue-bg" style="width: 0%"></div></div>
+            <span id="count-b" class="bar-val">0</span>
+          </div>
+          <div class="chart-bar-row">
+            <span class="bar-label red-text">C</span>
+            <div class="bar-track"><div id="bar-c" class="bar-fill red-bg" style="width: 0%"></div></div>
+            <span id="count-c" class="bar-val">0</span>
+          </div>
+          <div class="chart-bar-row">
+            <span class="bar-label purple-text">D</span>
+            <div class="bar-track"><div id="bar-d" class="bar-fill purple-bg" style="width: 0%"></div></div>
+            <span id="count-d" class="bar-val">0</span>
+          </div>
+        </div>
+
+        <!-- Tally controls -->
+        <div class="tally-actions-row">
+          <button id="reset-tally-btn" class="btn btn-outline btn-sm">🔄 Reset Tally</button>
+          <button id="show-analytics-btn" class="btn btn-primary btn-sm">📊 Analytics</button>
+        </div>
+
+        <!-- Stabilizing indicators -->
+        <div class="stabilizing-status-box">
+          <h3>Stabilizing Feed:</h3>
+          <div id="stabilizing-list" class="stabilizing-list">No cards stabilizing...</div>
+        </div>
+
+        <!-- List of locks -->
+        <div class="locked-responses-box">
+          <div class="box-header">
+            <h3>Live Locked Responses</h3>
+            <span class="badge" id="locked-count-badge">0 Locked</span>
+          </div>
+          <div class="locked-list-scroll">
+            <table id="locked-responses-table">
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>ID</th>
+                  <th>Answer</th>
+                </tr>
+              </thead>
+              <tbody id="locked-tbody">
+                <tr class="empty-list-row">
+                  <td colspan="3">No responses locked in yet. Hold up your cards!</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Analytics Popup Modal -->
+  <div id="analytics-modal" class="modal-overlay hidden">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h2 class="modal-title">📊 Live Poll Analytics & Results</h2>
+        <button id="close-modal-header-btn" class="modal-close-x">&times;</button>
+      </div>
+      <div class="modal-content">
+        <!-- Summary Stats Grid -->
+        <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+          <div class="stat-card">
+            <span class="stat-val" id="modal-stat-total">0</span>
+            <span class="stat-lbl">Total Students</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-val" id="modal-stat-locked">0</span>
+            <span class="stat-lbl">Responses Locked</span>
+          </div>
+          <div id="stat-card-correct" class="stat-card hidden" style="border: 1px solid rgba(16, 185, 129, 0.3); background-color: rgba(16, 185, 129, 0.03);">
+            <span class="stat-val" id="modal-stat-correct" style="color: var(--color-a);">0</span>
+            <span class="stat-lbl">Correct Answers</span>
+          </div>
+          <div id="stat-card-accuracy" class="stat-card hidden" style="border: 1px solid rgba(79, 70, 229, 0.3); background-color: rgba(79, 70, 229, 0.03);">
+            <span class="stat-val" id="modal-stat-accuracy" style="color: var(--primary);">0%</span>
+            <span class="stat-lbl">Accuracy</span>
+          </div>
+        </div>
+
+        <!-- Visual CSV Lookup Table -->
+        <div class="visual-lookup-box">
+          <h3>Visual CSV Lookup</h3>
+          <div class="lookup-table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student Name</th>
+                  <th>Student ID</th>
+                  <th>Answer</th>
+                </tr>
+              </thead>
+              <tbody id="modal-lookup-tbody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="export-csv-modal-btn" class="btn btn-primary">📥 Export CSV File</button>
+        <button id="close-modal-btn" class="btn btn-outline">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="cv.js"></script>
+  <script src="aruco.js"></script>
+  <script src="scanner.js?v=3"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+name: showanswer_scanner
+description: Premium standalone mobile camera & OCR scanner for ShowAnswer.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  camera: ^0.10.5
+  http: ^1.1.0
+  path_provider: ^2.1.1
+  permission_handler: ^11.0.1
+  shared_preferences: ^2.2.0
+  webview_flutter: ^4.4.2
+  file_picker: ^8.0.5
+  image: ^4.1.7
+  pdf: ^3.10.8
+  share_plus: ^7.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/web/admin/
+    - assets/web/admin/index.html
+    - assets/web/admin/generator.html
+    - assets/web/admin/generator.js
+    - assets/web/admin/ocr_sheet.html
+    - assets/web/admin/login.html
+    - assets/web/admin/login.js
+    - assets/web/admin/style.css
+    - assets/web/admin/aruco.js
+    - assets/web/admin/cv.js
+    - assets/web/admin/class_hub.js
+    - assets/web/teacher/
+    - assets/web/teacher/index.html
+    - assets/web/teacher/question.html
+    - assets/web/teacher/question.js
+    - assets/web/teacher/scanner.html
+    - assets/web/teacher/scanner.js
+    - assets/web/teacher/report.html
+    - assets/web/teacher/report.js
+    - assets/web/teacher/ocr_setup.html
+    - assets/web/teacher/ocr_scanner.html
+    - assets/web/teacher/ocr_scanner.js
+    - assets/web/teacher/login.html
+    - assets/web/teacher/login.js
+    - assets/web/teacher/aruco.js
+    - assets/web/teacher/cv.js
+    - assets/web/teacher/style.css
+    - assets/web/teacher/ocr_style.css
+

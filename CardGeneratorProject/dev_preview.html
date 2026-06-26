@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ShowAnswer — Developer Sandbox & Mobile Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-panel: rgba(17, 24, 39, 0.7);
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.15);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --font-sans: 'Outfit', sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top Navigation Header */
+    .sandbox-header {
+      padding: 16px 32px;
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .sandbox-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sandbox-logo h1 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .sandbox-logo .badge {
+      font-size: 0.75rem;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .server-status {
+      display: flex;
+      gap: 16px;
+      font-size: 0.85rem;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #10b981; /* green */
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    /* Main Workspace Layout */
+    .sandbox-layout {
+      flex-grow: 1;
+      display: grid;
+      grid-template-columns: 320px 1fr 400px;
+      height: calc(100vh - 65px);
+      background: rgba(255, 255, 255, 0.01);
+    }
+
+    /* Sidebars */
+    .sandbox-sidebar {
+      background: var(--bg-panel);
+      backdrop-filter: blur(8px);
+      padding: 24px;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      overflow-y: auto;
+    }
+
+    .right-sidebar {
+      border-right: none;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .sidebar-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    /* Navigation Buttons */
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .nav-btn {
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-main);
+      text-align: left;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: var(--primary);
+      transform: translateX(4px);
+    }
+
+    .nav-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    /* Device Sizer Controls */
+    .size-controls {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .size-btn {
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+
+    .size-btn.active, .size-btn:hover {
+      background: rgba(99, 102, 241, 0.1);
+      border-color: var(--primary);
+    }
+
+    /* Center Viewport: Phone Mockup */
+    .viewport-area {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Phone Mockup Frame styling */
+    .phone-mockup {
+      background-color: #000000;
+      border: 12px solid #1e293b;
+      border-radius: 40px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Speaker/Notch Overlay */
+    .phone-mockup::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 25px;
+      background-color: #1e293b;
+      border-bottom-left-radius: 16px;
+      border-bottom-right-radius: 16px;
+      z-index: 100;
+    }
+
+    /* Screen inside phone */
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background-color: #ffffff;
+      border-radius: 28px;
+      overflow: hidden;
+      position: relative;
+      border: none;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background-color: #ffffff;
+    }
+
+    /* Sandbox OCR Upload Tool */
+    .upload-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.3);
+      background: rgba(99, 102, 241, 0.02);
+      border-radius: 12px;
+      padding: 30px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+
+    .upload-icon {
+      font-size: 2rem;
+    }
+
+    .upload-zone p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .upload-zone strong {
+      color: var(--text-main);
+    }
+
+    #ocr-image-input {
+      display: none;
+    }
+
+    /* JSON Output Log block */
+    .json-log-card {
+      background: #020617;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      overflow-x: auto;
+      max-height: 250px;
+      color: #38bdf8;
+      white-space: pre-wrap;
+    }
+
+    .help-box {
+      background: rgba(245, 158, 11, 0.03);
+      border: 1px solid rgba(245, 158, 11, 0.15);
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 0.8rem;
+      color: #f59e0b;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sandbox Header -->
+  <header class="sandbox-header">
+    <div class="sandbox-logo">
+      <span style="font-size: 1.6rem;">📱</span>
+      <h1>ShowAnswer <span class="badge">Developer Sandbox</span></h1>
+    </div>
+    
+    <div class="server-status">
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>Generator (Port 8000): <strong>Online</strong></span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot"></span>
+        <span>Scanner (Port 8002): <strong>Online</strong></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sandbox Main Layout -->
+  <div class="sandbox-layout">
+    
+    <!-- Left Sidebar: Navigation & Sizers -->
+    <div class="sandbox-sidebar">
+      <div>
+        <h3 class="sidebar-title">Simulator Screens</h3>
+        <div class="nav-list">
+          <button class="nav-btn active" onclick="loadUrl('http://localhost:8000/')">
+            <span>📊</span> Classroom Hub
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8000/generator.html')">
+            <span>🖨️</span> Card Generator
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8000/ocr_sheet.html')">
+            <span>📄</span> Printable OCR Sheet
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8002/question.html')">
+            <span>📝</span> Quiz Setup Entry
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8002/scanner.html')">
+            <span>📹</span> Live ArUco Scanner
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8002/ocr_scanner.html')">
+            <span>✏️</span> OCR Sheet Scanner
+          </button>
+          <button class="nav-btn" onclick="loadUrl('http://localhost:8002/report.html')">
+            <span>📈</span> Analytics Reports
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h3 class="sidebar-title">Device Simulator Size</h3>
+        <div class="size-controls">
+          <button class="size-btn active" onclick="resizeDevice(375, 812, this)">iPhone 13</button>
+          <button class="size-btn" onclick="resizeDevice(320, 568, this)">iPhone SE</button>
+          <button class="size-btn" onclick="resizeDevice(412, 915, this)">Pixel 6</button>
+        </div>
+      </div>
+
+      <div class="help-box">
+        💡 <strong>Developer Hint:</strong> Press F12 in your browser to inspect styling, view console errors, and track client-side JavaScript execution inside the simulator frame.
+      </div>
+    </div>
+
+    <!-- Center Panel: The Portrait Phone Mockup -->
+    <div class="viewport-area">
+      <div id="phone-frame" class="phone-mockup" style="width: 375px; height: 812px;">
+        <div class="phone-screen">
+          <iframe id="simulator-iframe" src="http://localhost:8000/"></iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar: OCR Upload Tester & Utilities -->
+    <div class="sandbox-sidebar right-sidebar">
+      <div>
+        <h3 class="sidebar-title">OCR Backend Tester</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+          Test the Python backend OCR sheet reader endpoint without a webcam. Drag-and-drop a scanned sheet photo below to grade it.
+        </p>
+
+        <div class="upload-zone" onclick="triggerFileInput()" id="drop-zone">
+          <span class="upload-icon">📁</span>
+          <p><strong>Click to Upload</strong> or drag response sheet photo</p>
+          <p style="font-size: 0.75rem; color: #6366f1;">Supports PNG, JPEG</p>
+          <input type="file" id="ocr-image-input" accept="image/*" onchange="handleFileSelect(event)">
+        </div>
+      </div>
+
+      <div>
+        <h3 class="sidebar-title">OCR Grader JSON Output</h3>
+        <pre id="json-output-block" class="json-log-card">Waiting for image upload to scan...</pre>
+      </div>
+
+      <div>
+        <h3 class="sidebar-title">Quick Tasks</h3>
+        <div class="nav-list">
+          <button class="nav-btn" onclick="resetActiveResponses()" style="font-size: 0.8rem; padding: 10px;">
+            🗑️ Clear Active Scanned Responses
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Simulator control
+    const iframe = document.getElementById('simulator-iframe');
+    const phoneFrame = document.getElementById('phone-frame');
+    const dropZone = document.getElementById('drop-zone');
+
+    function loadUrl(url) {
+      iframe.src = url;
+      
+      // Update active state of buttons
+      const buttons = document.querySelectorAll('.nav-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      
+      // Find matching button
+      event.currentTarget.classList.add('active');
+    }
+
+    function resizeDevice(width, height, element) {
+      phoneFrame.style.width = width + 'px';
+      phoneFrame.style.height = height + 'px';
+
+      const sizerButtons = document.querySelectorAll('.size-btn');
+      sizerButtons.forEach(btn => btn.classList.remove('active'));
+      element.classList.add('active');
+    }
+
+    // OCR Test File upload & dispatch logic
+    function triggerFileInput() {
+      document.getElementById('ocr-image-input').click();
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        processOCRFile(file);
+      }
+    }
+
+    // Drag and drop setup
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#10b981';
+      dropZone.style.background = 'rgba(16, 185, 129, 0.04)';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+      dropZone.style.background = 'rgba(99, 102, 241, 0.02)';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+      dropZone.style.background = 'rgba(99, 102, 241, 0.02)';
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        processOCRFile(file);
+      }
+    });
+
+    function processOCRFile(file) {
+      const logBlock = document.getElementById('json-output-block');
+      logBlock.textContent = "Reading file and converting to base64...";
+      
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64Data = e.target.result;
+        logBlock.textContent = "Posting base64 to Python API /api/ocr/scan...\n(Running perspective warp and EasyOCR models...)";
+        
+        try {
+          const res = await fetch('http://localhost:8002/api/ocr/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Data })
+          });
+          
+          if (!res.ok) {
+            throw new Error(`Server returned status code ${res.status}`);
+          }
+          
+          const jsonResult = await res.json();
+          logBlock.textContent = JSON.stringify(jsonResult, null, 2);
+          
+          // If successful, reload the report in the simulator iframe if it's currently on the report page
+          if (jsonResult.status === 'success' && iframe.src.includes('report.html')) {
+            iframe.contentWindow.location.reload();
+          }
+        } catch (err) {
+          logBlock.textContent = "Error during request:\n" + err.message;
+        }
+      };
+      
+      reader.onerror = function() {
+        logBlock.textContent = "Failed to read file.";
+      };
+      
+      reader.readAsDataURL(file);
+    }
+
+    // Quick Task utility helper
+    async function resetActiveResponses() {
+      if (confirm("Are you sure you want to clear all active scanned student responses?")) {
+        try {
+          const res = await fetch('http://localhost:8002/api/reset_responses', { method: 'POST' });
+          if (res.ok) {
+            alert("Active scanned student responses deleted successfully!");
+            iframe.contentWindow.location.reload();
+          }
+        } catch (e) {
+          alert("Reset request failed: " + e.message);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

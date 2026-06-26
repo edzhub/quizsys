@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <script>
+    (function () {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Teacher') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Teacher') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => { });
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Teacher Dashboard</title>
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <style>
+    .dashboard-layout {
+      max-width: 1000px;
+      margin: 40px auto;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 32px;
+      margin-top: 40px;
+    }
+
+    .module-card {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 40px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+    }
+
+    .module-card:hover {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Default styles for child elements inside both cards */
+    .module-card .module-title {
+      color: #0f172a;
+      transition: color 0.3s ease;
+    }
+
+    .module-card .module-desc {
+      color: var(--text-muted);
+      transition: color 0.3s ease;
+    }
+
+    .module-card .icon-badge {
+      background: rgba(9, 9, 11, 0.05);
+      color: #09090b;
+      border: 1px solid var(--border-color);
+      box-shadow: none;
+      transition: all 0.3s ease;
+    }
+
+    .module-card .module-tag {
+      background-color: rgba(9, 9, 11, 0.06);
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+    }
+
+    .module-card .btn-enter {
+      background: #09090b;
+      color: #ffffff;
+      transition: all 0.3s ease;
+    }
+
+    .module-card .btn-enter:hover {
+      background: #18181b;
+    }
+
+    /* Hover state overrides (both cards turn black and premium neon lime) */
+    .module-card:hover {
+      background: #09090b;
+      border-color: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+
+    .module-card:hover .module-title {
+      color: #ffffff;
+    }
+
+    .module-card:hover .module-desc {
+      color: #a1a1aa;
+    }
+
+    .module-card:hover .icon-badge {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+
+    .module-card:hover .module-tag {
+      background-color: rgba(212, 252, 52, 0.15);
+      color: var(--accent);
+    }
+
+    .module-card:hover .btn-enter {
+      background: var(--accent);
+      color: #09090b;
+      box-shadow: 0 4px 12px rgba(212, 252, 52, 0.2);
+    }
+
+    .icon-badge {
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      margin-bottom: 24px;
+      transition: all 0.3s ease;
+    }
+
+    .module-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: #0f172a;
+      margin-bottom: 6px;
+      transition: color 0.3s ease;
+    }
+
+    .module-tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: lowercase;
+      letter-spacing: 0.05em;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      margin-bottom: 20px;
+      display: inline-block;
+      transition: all 0.3s ease;
+    }
+
+    .module-desc {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+      transition: color 0.3s ease;
+    }
+
+    .btn-enter {
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app-container" class="dashboard-layout">
+
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">🏫</span>
+        <h1>ShowAnswer <span class="badge">Teacher Portal</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-desc">Welcome, <span id="teacher-name-span"
+            style="font-weight: 600; color: var(--text-main);">Teacher</span></div>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm"
+          style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout
+          ➔</button>
+      </div>
+    </header>
+
+    <!-- Welcome Greeting banner -->
+    <div style="margin-top: 24px; margin-bottom: 8px;">
+      <h2 style="font-size: 1.75rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px;">Teacher
+        Dashboard</h2>
+      <p style="color: var(--text-muted); margin-top: 4px;">Select a module card below to begin configuring quizzes,
+        scanning exams, or running live polls.</p>
+    </div>
+
+    <!-- DASHBOARD MODULE CARDS GRID -->
+    <div class="dashboard-grid">
+      
+      <!-- Card 1: AR Polling Module -->
+      <div class="module-card card-ar" onclick="window.location.href='question.html'">
+        <div class="icon-badge">
+          <span>📡</span>
+        </div>
+        <h3 class="module-title">AR Polling Module</h3>
+        <span class="module-tag">live evaluation</span>
+        <p class="module-desc" style="flex-grow: 1;">Configure multiple-choice questions, manage active quizzes, and scan physical ArUco student cards using your camera for instant live grading.</p>
+        <button class="btn-enter">
+          Enter AR Module ➔
+        </button>
+      </div>
+
+      <!-- Card 2: OCR Handwriting Module -->
+      <div class="module-card card-ocr" onclick="window.location.href='ocr_setup.html'">
+        <div class="icon-badge">
+          <span>✏️</span>
+        </div>
+        <h3 class="module-title">OCR Handwriting Module</h3>
+        <span class="module-tag">handwritten sheet evaluator</span>
+        <p class="module-desc" style="flex-grow: 1;">Generate printable exam response sheets using AI or custom PDFs, print response templates, and scan completed handwritten sheets for automatic OCR grading.</p>
+        <button class="btn-enter">
+          Enter OCR Module ➔
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Dynamic Mobile Pairing Card (Only shown on Desktop) -->
+    <div id="mobile-pairing-card" class="card" style="margin-top: 36px; padding: 32px; display: none; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 280px;">
+        <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+          📱 Run on Mobile Phone / Tablet
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px;">
+          Scanning is much more accurate and easier to control when using a mobile device's back camera instead of a desktop webcam. Scan the QR code or visit the link on your phone to open the portable responsive app.
+        </p>
+        <div style="background-color: var(--bg-input); padding: 12px 18px; border-radius: 8px; font-family: monospace; font-size: 0.95rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); word-break: break-all;">
+          <span style="color: var(--success); font-weight: bold;">●</span>
+          <span id="mobile-pairing-url">http://192.168.X.X:8002</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 12px;">
+          * Ensure both your PC and mobile device are connected to the same Wi-Fi network. Add the page to your Home Screen to run it standalone.
+        </p>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; justify-content: center; min-width: 150px;">
+        <div id="pairing-qr-container" style="background: white; padding: 12px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); width: 174px; height: 174px; display: flex; align-items: center; justify-content: center;">
+          <img id="pairing-qr-img" src="" alt="QR Code" style="width: 150px; height: 150px; display: none;">
+          <div id="pairing-qr-loading" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Loading QR...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Prefill username in greeting
+    const username = localStorage.getItem('showanswer_session_username') || 'Teacher';
+    const capitalized = username.charAt(0).toUpperCase() + username.slice(1);
+    document.getElementById('teacher-name-span').textContent = capitalized;
+
+    // Register Service Worker for PWA installation
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+
+    // Fetch Server LAN IP and setup Mobile Pairing
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]') {
+      const pairingCard = document.getElementById('mobile-pairing-card');
+      const pairingUrlText = document.getElementById('mobile-pairing-url');
+      const pairingQrImg = document.getElementById('pairing-qr-img');
+      const pairingQrLoading = document.getElementById('pairing-qr-loading');
+      
+      fetch('/api/server-info')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.local_ip && data.local_ip !== '127.0.0.1') {
+            const url = `http://${data.local_ip}:${data.port}`;
+            pairingUrlText.textContent = url;
+            
+            // Build QR Code image source using a public API
+            pairingQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`;
+            pairingQrImg.onload = () => {
+              pairingQrLoading.style.display = 'none';
+              pairingQrImg.style.display = 'block';
+            };
+            pairingCard.style.display = 'flex';
+          }
+        })
+        .catch(err => console.warn('Could not fetch server pairing info:', err));
+    }
+  </script>
+</body>
+
+</html>

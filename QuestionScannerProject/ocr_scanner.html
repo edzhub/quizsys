@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Teacher') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Teacher') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ShowAnswer — OCR Sheet Scanner</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="ocr_style.css">
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- App Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">📝</span>
+        <h1>ShowAnswer <span class="badge">Teacher Portal</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.75rem; border-color: var(--danger); color: var(--danger);">Logout ➔</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <a href="index.html" class="tab-btn" style="text-decoration: none;">🏠 Switch Module</a>
+      <a href="ocr_setup.html" class="tab-btn" style="text-decoration: none;">📝 OCR Setup & Print</a>
+      <a href="ocr_scanner.html" class="tab-btn active" style="text-decoration: none;">✏️ Scan OCR Sheets</a>
+    </div>
+
+    <!-- Camera Viewport Container -->
+    <div class="camera-container">
+      <video id="camera-video" autoplay playsinline muted></video>
+
+      <!-- Translucent Overlay / Target Box Frame Alignment Guide -->
+      <div class="overlay-guide">
+        <div class="guide-text-overlay">
+          Align the 4 black corner squares of the sheet inside the corner anchors
+        </div>
+        
+        <div class="guide-row">
+          <div class="guide-corner guide-tl"></div>
+          <div class="guide-corner guide-tr"></div>
+        </div>
+        <div class="guide-row">
+          <div class="guide-corner guide-bl"></div>
+          <div class="guide-corner guide-br"></div>
+        </div>
+      </div>
+
+      <!-- Live Spinner Overlay during API requests -->
+      <div id="spinner-overlay" class="spinner-container">
+        <div class="spinner"></div>
+        <div class="spinner-text" id="spinner-status">Scanning Answer Sheet...</div>
+      </div>
+    </div>
+
+    <!-- Camera Source Control Bar -->
+    <div class="controls-panel">
+      <!-- Server IP configuration row -->
+      <div style="width: 100%; display: flex; gap: 10px; margin-bottom: 4px; align-items: center;">
+        <label for="server-ip-input" style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); min-width: 70px;">Server IP:</label>
+        <input type="text" id="server-ip-input" placeholder="e.g. 192.168.1.100" style="flex-grow: 1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 0.85rem; outline: none;">
+        <span id="connection-indicator" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; flex-shrink: 0;" title="Offline"></span>
+      </div>
+
+      <div class="camera-controls-row">
+        <div class="select-wrapper">
+          <select id="camera-select">
+            <option value="">Selecting back camera...</option>
+          </select>
+        </div>
+        
+        <!-- Scan Button -->
+        <button id="btn-capture-scan" class="btn-scan" title="Scan Sheet">📷</button>
+        
+        <button id="btn-tally-results" class="btn btn-outline" style="min-width: 80px;">📊 Stats</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Result Modal Slide-Up -->
+  <div id="result-modal" class="result-modal-overlay">
+    <div class="result-card">
+      <div class="result-header">
+        <div class="result-title">
+          <h2 id="res-student-name">Akshay Sharma</h2>
+          <p>Roll No: <span id="res-student-id">22001</span></p>
+        </div>
+        <div class="result-score">
+          <div id="res-score-badge" class="score-badge">4 / 5</div>
+        </div>
+      </div>
+
+      <div class="details-grid">
+        <div class="detail-item">
+          <div class="detail-label">Class</div>
+          <div class="detail-value" id="res-class">10</div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">Section</div>
+          <div class="detail-value" id="res-section">A</div>
+        </div>
+      </div>
+
+      <div class="answers-list" id="res-answers-list">
+        <!-- Rows populated dynamically -->
+      </div>
+
+      <div style="display: flex; gap: 12px; width: 100%;">
+        <button id="btn-modal-close" class="btn btn-primary" style="flex-grow: 1; padding: 12px;">Scan Another Sheet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic Logic -->
+  <script src="ocr_scanner.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+</html>

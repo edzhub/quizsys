@@ -1,0 +1,11 @@
+opencv-python
+numpy
+onnxruntime
+pyclipper
+shapely
+PyYAML
+Pillow
+tqdm
+omegaconf
+requests
+colorlog

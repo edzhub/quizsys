@@ -1,0 +1,22 @@
+{
+  "name": "ShowAnswer Teacher Portal",
+  "short_name": "ShowAnswer",
+  "description": "Premium classroom evaluation & OCR scanning app",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#f4f8f9",
+  "theme_color": "#09090b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

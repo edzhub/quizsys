@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Admin') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Admin') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Classroom Hub</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Screen Content -->
+  <div id="app-container" class="screen-only">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">🏫</span>
+        <h1>ShowAnswer <span class="badge">Classroom Hub</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div class="header-desc">Web Classroom Polls — Portal Hub</div>
+        <button onclick="window.location.href='http://' + window.location.hostname + ':8002';" class="btn btn-primary btn-sm" style="padding: 6px 12px; font-weight:600; border-radius:6px; background-color: var(--primary); color: #09090b; border: none; cursor: pointer;">Teacher Portal ➔</button>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
+      </div>
+    </header>
+
+    <!-- Micro-Frontend Launcher Grid -->
+    <div class="portal-links-container">
+      <a href="/generator.html" target="_blank" id="open-generator-link" class="portal-card">
+        <div class="portal-info">
+          <span class="portal-title">🖨️ Card Generator <span class="badge">Open Generator</span></span>
+          <span class="portal-desc">Preview and print A4-optimized ArUco polling cards</span>
+        </div>
+      </a>
+      <a href="/ocr_sheet.html" target="_blank" id="open-ocr-sheet-link" class="portal-card">
+        <div class="portal-info">
+          <span class="portal-title">📝 Print OCR Sheets <span class="badge">Open PDF Sheet</span></span>
+          <span class="portal-desc">Preview and print handwritten answer sheets for scanning</span>
+        </div>
+      </a>
+    </div>
+
+    <!-- Main Content Panels -->
+    <main class="app-content">
+      <div class="grid-2col">
+        
+        <!-- Class List Upload & Input Form -->
+        <div class="card">
+          <h2 class="card-title">Student Data Input</h2>
+          
+          <!-- Drag and Drop CSV Zone -->
+          <div id="csv-drop-zone" class="drop-zone">
+            <span class="drop-zone-icon">📁</span>
+            <p>Drag and drop <strong>students.csv</strong> here</p>
+            <span class="drop-zone-alt">or click to browse</span>
+            <input type="file" id="csv-file-input" accept=".csv" class="hidden-input">
+          </div>
+
+          <div class="divider"><span>OR ADD MANUALLY</span></div>
+
+          <!-- Manual Add Form -->
+          <form id="add-student-form" class="roster-form">
+            <div class="form-group">
+              <label for="student-name">Full Name</label>
+              <input type="text" id="student-name" placeholder="e.g. Akshay Sharma" required autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="student-id">Student ID</label>
+              <input type="text" id="student-id" placeholder="e.g. 220001" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary">➕ Add Student</button>
+          </form>
+          
+          <button id="generate-codes-btn" class="btn btn-success btn-lg" style="width: 100%; margin-top: 20px; box-shadow: var(--shadow-md);">🖨️ Generate Codes</button>
+        </div>
+
+        <!-- Class List Display -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Class List (<span id="class-count">0</span>)</h2>
+            <button id="clear-class-btn" class="btn btn-danger btn-sm">🗑️ Clear Class List</button>
+          </div>
+          <div class="table-container">
+            <table id="class-table">
+              <thead>
+                <tr>
+                  <th>Student ID</th>
+                  <th>Name</th>
+                </tr>
+              </thead>
+              <tbody id="class-tbody">
+                <tr class="empty-row">
+                  <td colspan="2">No students loaded. Upload a CSV or add students manually above.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Dynamic Mobile Pairing Card (Only shown on Desktop) -->
+    <div id="mobile-pairing-card" class="card" style="margin-top: 36px; padding: 32px; display: none; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap;">
+      <div style="flex: 1; min-width: 280px;">
+        <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+          📱 Run on Mobile Phone / Tablet
+        </h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px;">
+          Access the Classroom Hub and Generator directly from your mobile device. Scan the QR code or visit the link on your phone to open the portable responsive app.
+        </p>
+        <div style="background-color: var(--bg-input); padding: 12px 18px; border-radius: 8px; font-family: monospace; font-size: 0.95rem; color: var(--text-main); display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); word-break: break-all;">
+          <span style="color: var(--success); font-weight: bold;">●</span>
+          <span id="mobile-pairing-url">http://192.168.X.X:8000</span>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 12px;">
+          * Ensure both your PC and mobile device are connected to the same Wi-Fi network. Add the page to your Home Screen to run it standalone.
+        </p>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; justify-content: center; min-width: 150px;">
+        <div id="pairing-qr-container" style="background: white; padding: 12px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); width: 174px; height: 174px; display: flex; align-items: center; justify-content: center;">
+          <img id="pairing-qr-img" src="" alt="QR Code" style="width: 150px; height: 150px; display: none;">
+          <div id="pairing-qr-loading" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">Loading QR...</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="class_hub.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+
+    // Fetch Server LAN IP and setup Mobile Pairing
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname === '[::1]') {
+      const pairingCard = document.getElementById('mobile-pairing-card');
+      const pairingUrlText = document.getElementById('mobile-pairing-url');
+      const pairingQrImg = document.getElementById('pairing-qr-img');
+      const pairingQrLoading = document.getElementById('pairing-qr-loading');
+      
+      fetch('/api/server-info')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.local_ip && data.local_ip !== '127.0.0.1') {
+            const url = `http://${data.local_ip}:${data.port}`;
+            pairingUrlText.textContent = url;
+            
+            // Build QR Code image source using a public API
+            pairingQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`;
+            pairingQrImg.onload = () => {
+              pairingQrLoading.style.display = 'none';
+              pairingQrImg.style.display = 'block';
+            };
+            pairingCard.style.display = 'flex';
+          }
+        })
+        .catch(err => console.warn('Could not fetch server pairing info:', err));
+    }
+  </script>
+</body>
+</html>

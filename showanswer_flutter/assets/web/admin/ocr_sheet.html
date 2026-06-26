@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Admin') {
+        window.location.href = 'login.html';
+      } else {
+        fetch(window.location.origin + '/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Admin') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — Printable OCR Sheet</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f1f5f9;
+      font-family: 'Outfit', sans-serif;
+    }
+    .sheet-page {
+      background-color: #ffffff;
+      width: 210mm;
+      height: 297mm;
+      box-sizing: border-box;
+      position: relative;
+      margin: 20px auto;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .anchor {
+      position: absolute;
+      width: 15mm;
+      height: 15mm;
+      background-color: #000000;
+    }
+    .tl { top: 10mm; left: 10mm; }
+    .tr { top: 10mm; right: 10mm; }
+    .bl { bottom: 10mm; left: 10mm; }
+    .br { bottom: 10mm; right: 10mm; }
+
+    .absolute-element {
+      position: absolute;
+      box-sizing: border-box;
+    }
+
+    .blue-box {
+      border: 3.5px solid #0284c7; /* Vibrant blue border */
+      border-radius: 6px;
+      background-color: #f0f9ff;
+    }
+
+    .question-row {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      width: 145mm;
+      height: 22mm;
+    }
+    .question-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 100%;
+    }
+    .q-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #000000;
+    }
+    .q-text {
+      display: none; /* Merged into titleEl for screenshot matching */
+    }
+    .q-choices {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 20px;
+      font-size: 0.88rem;
+      color: #000000;
+      font-weight: 500;
+      margin-top: 4px;
+      width: 100%;
+    }
+    
+    .footer-text {
+      position: absolute;
+      bottom: 20mm;
+      left: 20mm;
+      width: 170mm;
+      text-align: center;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 4mm;
+    }
+
+    /* Control Panel (Screen only) */
+    .control-panel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: #09090b;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      box-shadow: 0 4px 20px rgba(9, 9, 11, 0.15);
+      z-index: 10000;
+      font-family: 'Outfit', sans-serif;
+    }
+    .control-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .control-title span.badge {
+      background: #d4fc34;
+      color: #09090b;
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      text-transform: lowercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    .control-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .control-btn {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .btn-upload {
+      background-color: rgba(255, 255, 255, 0.08);
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-upload:hover {
+      background-color: rgba(255, 255, 255, 0.15);
+      border-color: white;
+    }
+    .btn-upload input[type="file"] {
+      position: absolute;
+      top: 0;
+      right: 0;
+      min-width: 100%;
+      min-height: 100%;
+      font-size: 100px;
+      text-align: right;
+      filter: alpha(opacity=0);
+      opacity: 0;
+      outline: none;
+      background: white;
+      cursor: inherit;
+      display: block;
+    }
+    .btn-clear {
+      background-color: #ef4444;
+      color: white;
+    }
+    .btn-clear:hover {
+      background-color: #dc2626;
+    }
+    .btn-print {
+      background-color: #d4fc34;
+      color: #09090b;
+      box-shadow: 0 4px 12px rgba(212, 252, 52, 0.2);
+    }
+    .btn-print:hover {
+      background-color: #c5f01e;
+      transform: translateY(-1px);
+    }
+
+    .no-print {
+      display: none;
+    }
+
+    @media screen {
+      .no-print {
+        display: flex;
+      }
+      .sheet-page {
+        margin-top: 100px !important;
+        margin-bottom: 100px !important;
+      }
+      
+      /* Floating Navigation Tabs matching the screenshot bottom navigation bar style */
+      .tab-nav {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10000;
+        background: rgba(9, 9, 11, 0.96);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding: 6px;
+        border-radius: 9999px;
+        display: flex;
+        gap: 6px;
+        box-shadow: 0 20px 40px -10px rgba(9, 9, 11, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-family: 'Outfit', sans-serif;
+      }
+
+      .tab-btn {
+        background: none;
+        border: none;
+        font-family: 'Outfit', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #a1a1aa;
+        padding: 10px 20px;
+        cursor: pointer;
+        border-radius: 9999px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+      }
+
+      .tab-btn:hover {
+        color: #ffffff;
+        background-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .tab-btn.active {
+        color: #09090b;
+        background: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background-color: #ffffff;
+      }
+      .sheet-page {
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+      }
+      #uploaded-question-box.empty-box {
+        display: none !important;
+      }
+    }
+
+    /* Screen Preview Mobile Responsiveness via dynamic scale transform */
+    @media screen and (max-width: 820px) {
+      .sheet-page {
+        transform: scale(calc((100vw - 32px) / 800)) !important;
+        transform-origin: top center !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        margin-top: 80px !important;
+        margin-bottom: -300px !important; /* Pull up trailing elements */
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Print Customizer Control Panel -->
+  <div class="control-panel no-print">
+    <div class="control-title">
+      <span>📝 ShowAnswer Sheet Designer</span>
+      <span class="badge">Print Customizer</span>
+    </div>
+    <div class="control-actions">
+      <button class="control-btn btn-upload">
+        📷 Upload Question Image
+        <input type="file" id="question-upload" accept="image/*">
+      </button>
+      <button class="control-btn btn-clear" id="btn-clear-img" style="display: none;">
+        ❌ Clear Question
+      </button>
+      <button class="control-btn btn-print" onclick="handlePrint()">
+        🖨️ Print Response Sheet
+      </button>
+    </div>
+  </div>
+
+  <div class="sheet-page">
+    <!-- 4 Corner anchors for OpenCV perspective warp -->
+    <div class="anchor tl"></div>
+    <div class="anchor tr"></div>
+    <div class="anchor bl"></div>
+    <div class="anchor br"></div>
+
+    <!-- Roman Numeral I at top center -->
+    <div class="absolute-element" style="left: 20mm; top: 20mm; width: 170mm; text-align: center; font-size: 1.5rem; font-weight: 700; color: #000000;">I</div>
+
+    <!-- Roll No Group (6 Digits) -->
+    <div class="absolute-element" style="left: 20mm; top: 32mm; font-size: 1.05rem; font-weight: 700; color: #000000; text-transform: uppercase;">Roll No.</div>
+    <div class="absolute-element blue-box" style="left: 20mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 34mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 48mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 62mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 76mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 90mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Class Group -->
+    <div class="absolute-element" style="left: 125mm; top: 32mm; width: 15mm; text-align: center; font-size: 1.05rem; font-weight: 700; color: #000000; text-transform: uppercase;">Class</div>
+    <div class="absolute-element blue-box" style="left: 126.5mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Section Group -->
+    <div class="absolute-element" style="left: 155mm; top: 32mm; width: 15mm; text-align: center; font-size: 1.05rem; font-weight: 700; color: #000000; text-transform: uppercase;">Section</div>
+    <div class="absolute-element blue-box" style="left: 156.5mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Instruction Subheader -->
+    <div class="absolute-element" style="left: 20mm; top: 68mm; font-size: 1.15rem; font-weight: 600; color: #000000;">Answer the following questions:</div>
+
+    <!-- Question 1 Row -->
+    <div class="absolute-element question-row" style="left: 20mm; top: 82mm;">
+      <div class="question-info">
+        <span class="q-title" id="q1-title">1. Question 1</span>
+        <span class="q-text" id="q1-text"></span>
+        <span class="q-choices" id="q1-choices">A. &nbsp;&nbsp;&nbsp;&nbsp; B. &nbsp;&nbsp;&nbsp;&nbsp; C. &nbsp;&nbsp;&nbsp;&nbsp; D.</span>
+      </div>
+    </div>
+    <div class="absolute-element blue-box" style="left: 175mm; top: 82mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Question 2 Row -->
+    <div class="absolute-element question-row" style="left: 20mm; top: 114mm;">
+      <div class="question-info">
+        <span class="q-title" id="q2-title">2. Question 2</span>
+        <span class="q-text" id="q2-text"></span>
+        <span class="q-choices" id="q2-choices">A. &nbsp;&nbsp;&nbsp;&nbsp; B. &nbsp;&nbsp;&nbsp;&nbsp; C. &nbsp;&nbsp;&nbsp;&nbsp; D.</span>
+      </div>
+    </div>
+    <div class="absolute-element blue-box" style="left: 175mm; top: 114mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Question 3 Row -->
+    <div class="absolute-element question-row" style="left: 20mm; top: 146mm;">
+      <div class="question-info">
+        <span class="q-title" id="q3-title">3. Question 3</span>
+        <span class="q-text" id="q3-text"></span>
+        <span class="q-choices" id="q3-choices">A. &nbsp;&nbsp;&nbsp;&nbsp; B. &nbsp;&nbsp;&nbsp;&nbsp; C. &nbsp;&nbsp;&nbsp;&nbsp; D.</span>
+      </div>
+    </div>
+    <div class="absolute-element blue-box" style="left: 175mm; top: 146mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Question 4 Row -->
+    <div class="absolute-element question-row" style="left: 20mm; top: 178mm;">
+      <div class="question-info">
+        <span class="q-title" id="q4-title">4. Question 4</span>
+        <span class="q-text" id="q4-text"></span>
+        <span class="q-choices" id="q4-choices">A. &nbsp;&nbsp;&nbsp;&nbsp; B. &nbsp;&nbsp;&nbsp;&nbsp; C. &nbsp;&nbsp;&nbsp;&nbsp; D.</span>
+      </div>
+    </div>
+    <div class="absolute-element blue-box" style="left: 175mm; top: 178mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Question 5 Row -->
+    <div class="absolute-element question-row" style="left: 20mm; top: 210mm;">
+      <div class="question-info">
+        <span class="q-title" id="q5-title">5. Question 5</span>
+        <span class="q-text" id="q5-text"></span>
+        <span class="q-choices" id="q5-choices">A. &nbsp;&nbsp;&nbsp;&nbsp; B. &nbsp;&nbsp;&nbsp;&nbsp; C. &nbsp;&nbsp;&nbsp;&nbsp; D.</span>
+      </div>
+    </div>
+    <div class="absolute-element blue-box" style="left: 175mm; top: 210mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Uploaded Question Space (Occupies bottom region from top: 240mm to 272mm) -->
+    <div class="absolute-element empty-box" id="uploaded-question-box" style="left: 20mm; top: 240mm; width: 170mm; height: 32mm; border: 1.5px dashed #cbd5e1; border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #f8fafc; transition: all 0.2s ease;">
+      <div id="upload-placeholder" style="text-align: center; color: #64748b; padding: 10px;">
+        <span style="font-size: 1.5rem; display: block; margin-bottom: 4px;">🖼️</span>
+        <span style="font-size: 0.85rem; font-weight: 600; display: block;">Upload Question Paper / Quiz Reference</span>
+        <span style="font-size: 0.75rem; color: #94a3b8; display: block; margin-top: 2px;">Click "Upload Question Image" in the top bar to display your custom question paper image here.</span>
+      </div>
+      <img id="uploaded-question-img" style="max-width: 100%; max-height: 100%; display: none; object-fit: contain;" />
+    </div>
+
+    <!-- Footer Text -->
+    <div class="footer-text">
+      Write letters clearly in UPPERCASE (e.g., A, B, C, D) inside the boxes.
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // 1. Fetch active quiz questions
+      try {
+        let basePath = "";
+        if (window.location.port === "8000") {
+          basePath = 'http://' + window.location.hostname + ':8002';
+        }
+        
+        const response = await fetch(`${basePath}/api/quiz/active`);
+        if (response.ok) {
+          const questions = await response.json();
+          if (questions && questions.length > 0) {
+            for (let i = 0; i < 5; i++) {
+              const titleEl = document.getElementById(`q${i+1}-title`);
+              const textEl = document.getElementById(`q${i+1}-text`);
+              const choicesEl = document.getElementById(`q${i+1}-choices`);
+              
+              if (i < questions.length) {
+                const q = questions[i];
+                titleEl.innerHTML = `<span style="font-weight:700;">${i + 1}. ${q.question || ""}</span>`;
+                textEl.textContent = "";
+                
+                // Construct options text
+                let optionsHtml = "";
+                if (q.optionA || q.optionB || q.optionC || q.optionD) {
+                  optionsHtml = `
+                    <div>A. ${q.optionA || ""}</div>
+                    <div>B. ${q.optionB || ""}</div>
+                    <div>C. ${q.optionC || ""}</div>
+                    <div>D. ${q.optionD || ""}</div>
+                  `;
+                } else {
+                  optionsHtml = `
+                    <div>A. &nbsp;</div>
+                    <div>B. &nbsp;</div>
+                    <div>C. &nbsp;</div>
+                    <div>D. &nbsp;</div>
+                  `;
+                }
+                
+                choicesEl.innerHTML = optionsHtml;
+              } else {
+                titleEl.innerHTML = `<span style="font-weight:700;">${i + 1}. Question ${i + 1}</span>`;
+                textEl.textContent = "";
+                choicesEl.innerHTML = `
+                  <div>A. &nbsp;</div>
+                  <div>B. &nbsp;</div>
+                  <div>C. &nbsp;</div>
+                  <div>D. &nbsp;</div>
+                `;
+              }
+            }
+          } else {
+            // No active questions, show clean empty list
+            for (let i = 0; i < 5; i++) {
+              document.getElementById(`q${i+1}-title`).innerHTML = `<span style="font-weight:700;">${i + 1}. Question ${i + 1}</span>`;
+              document.getElementById(`q${i+1}-text`).textContent = "";
+              document.getElementById(`q${i+1}-choices`).innerHTML = `
+                <div>A. &nbsp;</div>
+                <div>B. &nbsp;</div>
+                <div>C. &nbsp;</div>
+                <div>D. &nbsp;</div>
+              `;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch active quiz questions, showing blank sheet layout.", err);
+      }
+
+      // 2. Custom Image Upload Customizer
+      const fileInput = document.getElementById('question-upload');
+      const clearBtn = document.getElementById('btn-clear-img');
+      const box = document.getElementById('uploaded-question-box');
+      const img = document.getElementById('uploaded-question-img');
+      const placeholder = document.getElementById('upload-placeholder');
+      
+      if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              img.src = event.target.result;
+              img.style.display = 'block';
+              placeholder.style.display = 'none';
+              box.classList.remove('empty-box');
+              box.style.borderStyle = 'solid';
+              box.style.borderColor = '#e2e8f0';
+              clearBtn.style.display = 'inline-flex';
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+      }
+      
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          if (fileInput) fileInput.value = '';
+          img.src = '';
+          img.style.display = 'none';
+          placeholder.style.display = 'block';
+          box.classList.add('empty-box');
+          box.style.borderStyle = 'dashed';
+          box.style.borderColor = '#cbd5e1';
+        });
+      }
+    });
+
+    function showDesktopPrintModal() {
+      let modal = document.getElementById('mobile-print-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'mobile-print-modal';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
+        modal.style.backgroundColor = 'rgba(9, 9, 11, 0.95)';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.zIndex = '99999';
+        modal.style.fontFamily = "'Outfit', sans-serif";
+        modal.style.padding = '20px';
+        modal.style.boxSizing = 'border-box';
+        
+        const content = document.createElement('div');
+        content.style.backgroundColor = '#18181b';
+        content.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+        content.style.borderRadius = '24px';
+        content.style.padding = '32px';
+        content.style.maxWidth = '450px';
+        content.style.width = '100%';
+        content.style.color = '#f4f4f5';
+        content.style.boxShadow = '0 20px 40px rgba(0,0,0,0.5)';
+        content.style.textAlign = 'center';
+        
+        content.innerHTML = `
+          <div style="font-size: 3.5rem; margin-bottom: 16px;">🖨️</div>
+          <h3 style="font-size: 1.4rem; font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #ffffff;">Desktop Printing Required</h3>
+          <p style="color: #a1a1aa; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px;">
+            Mobile WebViews cannot open native printer dialogs directly.<br><br>
+            To print this response sheet, please open this page on your desktop computer:
+          </p>
+          <div id="print-modal-url" style="background-color: #27272a; padding: 14px; border-radius: 12px; font-family: monospace; font-size: 0.95rem; color: #d4fc34; border: 1px solid #3f3f46; word-break: break-all; margin-bottom: 24px;">
+            http://${window.location.hostname}:8000/ocr_sheet.html
+          </div>
+          <button id="close-print-modal-btn" style="background-color: #d4fc34; color: #09090b; border: none; border-radius: 9999px; padding: 12px 32px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+            Got it!
+          </button>
+        `;
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+        
+        document.getElementById('close-print-modal-btn').addEventListener('click', () => {
+          modal.style.display = 'none';
+        });
+      }
+      modal.style.display = 'flex';
+    }
+
+    function handlePrint() {
+      if (navigator.userAgent.includes("ShowAnswerMobileWebView")) {
+        if (window.PrintChannel) {
+          const imgElement = document.getElementById('uploaded-question-img');
+          const hasImg = imgElement && imgElement.style.display !== 'none' && imgElement.src;
+          
+          const questionsList = [];
+          for (let i = 0; i < 5; i++) {
+            const titleEl = document.getElementById(`q${i+1}-title`);
+            const choicesEl = document.getElementById(`q${i+1}-choices`);
+            if (titleEl) {
+              const cleanText = titleEl.innerText || "";
+              const cleanChoices = choicesEl ? Array.from(choicesEl.querySelectorAll('div')).map(el => el.innerText.trim()) : [];
+              questionsList.push({
+                text: cleanText,
+                choices: cleanChoices
+              });
+            }
+          }
+          
+          window.PrintChannel.postMessage(JSON.stringify({
+            type: 'print_response_sheet',
+            questions: questionsList,
+            questionImage: hasImg ? imgElement.src : null
+          }));
+        } else {
+          showDesktopPrintModal();
+        }
+      } else {
+        window.print();
+      }
+    }
+  </script>
+
+  <!-- Navigation Tabs removed -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+</html>

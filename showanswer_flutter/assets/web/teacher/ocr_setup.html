@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <script>
+    (function () {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Teacher') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Teacher') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => { });
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShowAnswer — OCR Sheet Hub</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShowAnswer">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Modern Font from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- PDF.js library for client-side PDF extraction -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    .ocr-layout {
+      max-width: 900px;
+      margin: 40px auto;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .settings-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 600px) {
+      .settings-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .key-input-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .key-input-container input {
+      flex-grow: 1;
+      padding-right: 40px;
+    }
+
+    .toggle-key-btn {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.1rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--primary);
+      background: rgba(99, 102, 241, 0.03);
+      padding: 32px 24px;
+      text-align: center;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      background: rgba(99, 102, 241, 0.08);
+      border-color: #4f46e5;
+    }
+
+    .drop-zone-icon {
+      font-size: 2.5rem;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .loader-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      font-family: var(--font-sans);
+    }
+
+    .loader-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.1);
+      border-top: 5px solid #ffffff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .question-editor-card {
+      margin-bottom: 20px;
+      border-left: 5px solid var(--primary);
+      animation: slideUp 0.3s ease-out;
+    }
+
+    .option-row {
+      display: grid;
+      grid-template-columns: 40px 1fr;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .option-letter {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 700;
+      color: white;
+    }
+
+    .letter-a {
+      background-color: var(--color-a);
+    }
+
+    .letter-b {
+      background-color: var(--color-b);
+    }
+
+    .letter-c {
+      background-color: var(--color-c);
+    }
+
+    .letter-d {
+      background-color: var(--color-d);
+    }
+
+    /* Print-Only Sheet Styling */
+    #print-sheet-container {
+      display: none;
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 0mm;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      body * {
+        display: none !important;
+      }
+
+      #print-sheet-container,
+      #print-sheet-container * {
+        display: block !important;
+      }
+
+      #print-sheet-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 210mm;
+        height: 297mm;
+        box-sizing: border-box;
+        background: #ffffff;
+        margin: 0;
+        padding: 0;
+        page-break-after: avoid;
+        overflow: hidden;
+      }
+
+      .anchor {
+        position: absolute;
+        width: 15mm;
+        height: 15mm;
+        background-color: #000000;
+        display: block !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .tl {
+        top: 10mm;
+        left: 10mm;
+      }
+
+      .tr {
+        top: 10mm;
+        right: 10mm;
+      }
+
+      .bl {
+        bottom: 10mm;
+        left: 10mm;
+      }
+
+      .br {
+        bottom: 10mm;
+        right: 10mm;
+      }
+
+      .absolute-element {
+        position: absolute;
+        box-sizing: border-box;
+        display: block !important;
+      }
+
+      .blue-box {
+        border: 3.5px solid #0284c7 !important;
+        border-radius: 6px;
+        background-color: #f0f9ff !important;
+        display: block !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .question-print-row {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: flex-start;
+        width: 145mm;
+        box-sizing: border-box;
+      }
+
+      .q-print-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #000000;
+        line-height: 1.35;
+        margin-bottom: 4px;
+      }
+
+      .q-print-choices {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2px 20px;
+        font-size: 0.8rem;
+        color: #000000;
+        font-weight: 500;
+        line-height: 1.35;
+        width: 100%;
+      }
+
+      .footer-print-text {
+        position: absolute;
+        bottom: 20mm;
+        left: 20mm;
+        width: 170mm;
+        text-align: center;
+        font-size: 0.8rem;
+        color: #64748b;
+        border-top: 1px solid #e2e8f0;
+        padding-top: 4mm;
+        display: block !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Screen Content -->
+  <div id="app-container" class="ocr-layout">
+
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">✏️</span>
+        <h1>ShowAnswer <span class="badge">OCR Sheet Module</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm"
+          style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout
+          ➔</button>
+      </div>
+    </header>
+
+    <!-- AI Generator Setup Panel -->
+    <div class="card">
+      <h2 class="card-title" style="margin-bottom: 12px;">🤖 AI Quiz Generator & Printer</h2>
+      <p class="card-subtitle" style="margin-bottom: 20px;">Upload a PDF or paste text to generate custom questions,
+        download A4 handwriting response sheets, and grade them via the scanner.</p>
+
+      <!-- API Key Setup -->
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label for="gemini-key" style="font-weight: 600;">Google Gemini API Key (Optional)</label>
+        <div class="key-input-container">
+          <input type="password" id="gemini-key" placeholder="Enter Gemini API key here..." autocomplete="off">
+          <button type="button" class="toggle-key-btn" id="toggle-key-btn">👁️</button>
+        </div>
+        <span class="drop-zone-alt" style="margin-top: 4px;">Get a free API Key from <a
+            href="https://aistudio.google.com/" target="_blank"
+            style="color: var(--primary); font-weight: 600; text-decoration: none;">Google AI Studio ➔</a>. Leave blank
+          to run in Demo Mode.</span>
+      </div>
+
+      <!-- File Upload & Text Area -->
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="font-weight: 600;">Reference Content Source</label>
+        <div id="pdf-drop-zone" class="drop-zone">
+          <span class="drop-zone-icon">📄</span>
+          <p style="margin: 0; font-weight: 600; color: var(--text-main); font-size: 1.05rem;" id="drop-zone-status">
+            Drag & drop quiz syllabus / PDF here</p>
+          <span style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-top: 4px;">or click to
+            browse from your computer</span>
+          <input type="file" id="pdf-file-input" accept=".pdf" class="hidden-input" style="display: none;">
+        </div>
+        <textarea id="plain-text-input"
+          style="width: 100%; min-height: 120px; font-family: var(--font-sans); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); outline: none; font-size: 0.95rem; resize: vertical;"
+          placeholder="Or paste plain text syllabus, textbook excerpt, or facts here to generate questions from..."></textarea>
+      </div>
+
+      <!-- Settings Row -->
+      <div class="settings-row">
+        <div class="form-group">
+          <label for="question-count" style="font-weight: 600;">Number of Questions</label>
+          <select id="question-count" style="width: 100%;">
+            <option value="3">3 Questions</option>
+            <option value="5" selected>5 Questions</option>
+            <option value="8">8 Questions</option>
+            <option value="10">10 Questions</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="difficulty-level" style="font-weight: 600;">Difficulty Level</label>
+          <select id="difficulty-level" style="width: 100%;">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display: flex; gap: 12px; justify-content: flex-end;">
+        <button id="btn-generate" class="btn btn-primary"
+          style="padding: 12px 24px; font-size: 1rem; box-shadow: var(--shadow-md);">⚡ Generate Questions</button>
+      </div>
+    </div>
+
+    <!-- Active generated list panel -->
+    <div id="generated-quiz-container" class="hidden">
+      <div
+        style="margin-top: 32px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+        <h2 style="font-size: 1.5rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.5px;">📝 Generated
+          Questions Editor</h2>
+        <span class="badge" id="editor-count-badge"
+          style="background-color: var(--text-muted); font-size: 0.85rem; padding: 4px 12px;">5 Questions</span>
+      </div>
+
+      <div id="editor-questions-list">
+        <!-- Injected dynamic card editors -->
+      </div>
+
+      <!-- Save, Print, Scanner bar -->
+      <div class="card"
+        style="display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center;">
+        <button id="btn-goto-scanner" class="btn btn-outline">📹 Go to Scanner ➔</button>
+
+        <div style="display: flex; gap: 12px;">
+          <button id="btn-activate" class="btn btn-primary"
+            style="background: linear-gradient(135deg, #6366f1, #4f46e5);">💾 Save & Activate Quiz</button>
+          <button id="btn-print" class="btn btn-success" disabled>🖨️ Print Response Sheet</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Dynamic loading screen -->
+  <div class="loader-overlay" id="loader-overlay">
+    <div class="loader-spinner"></div>
+    <h3 id="loader-text" style="font-weight: 600; font-size: 1.15rem;">Generating questions using Gemini AI...</h3>
+    <p style="font-size: 0.85rem; color: #cbd5e1; margin-top: 4px;">This might take up to 10 seconds</p>
+  </div>
+
+  <!-- PRINT PAGE WORKSPACE (Pure A4, shown only on window.print()) -->
+  <div id="print-sheet-container">
+    <!-- Corner Warp Anchors -->
+    <div class="anchor tl"></div>
+    <div class="anchor tr"></div>
+    <div class="anchor bl"></div>
+    <div class="anchor br"></div>
+
+    <!-- Top Label Header -->
+    <div class="absolute-element"
+      style="left: 20mm; top: 20mm; width: 170mm; text-align: center; font-size: 1.5rem; font-weight: 700; color: #000000;">
+    </div>
+
+    <!-- Student Details Block -->
+    <div class="absolute-element"
+      style="left: 20mm; top: 32mm; font-size: 1rem; font-weight: 700; color: #000000; text-transform: uppercase;">Roll
+      No.</div>
+    <div class="absolute-element blue-box" style="left: 20mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 34mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 48mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 62mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 76mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+    <div class="absolute-element blue-box" style="left: 90mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <div class="absolute-element"
+      style="left: 125mm; top: 32mm; width: 15mm; text-align: center; font-size: 1rem; font-weight: 700; color: #000000; text-transform: uppercase;">
+      Class</div>
+    <div class="absolute-element blue-box" style="left: 126.5mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <div class="absolute-element"
+      style="left: 155mm; top: 32mm; width: 15mm; text-align: center; font-size: 1rem; font-weight: 700; color: #000000; text-transform: uppercase;">
+      Section</div>
+    <div class="absolute-element blue-box" style="left: 156.5mm; top: 40mm; width: 12mm; height: 12mm;"></div>
+
+    <!-- Instruction Subheader -->
+    <div class="absolute-element" style="left: 20mm; top: 68mm; font-size: 1.1rem; font-weight: 600; color: #000000;">
+      Answer the following questions:</div>
+
+    <!-- Dynamic Questions & Answer Boxes will be injected here during printing -->
+    <div id="print-sheet-items"></div>
+
+    <div class="footer-print-text">
+      Write letters clearly in UPPERCASE (e.g., A, B, C, D) inside the boxes on the right.
+    </div>
+  </div>
+
+  <!-- Client-side Logic -->
+  <script>
+    // Initialize PDFJS Worker Src
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
+
+    let activeQuestions = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const geminiKeyInput = document.getElementById('gemini-key');
+      const toggleKeyBtn = document.getElementById('toggle-key-btn');
+
+      const pdfDropZone = document.getElementById('pdf-drop-zone');
+      const pdfFileInput = document.getElementById('pdf-file-input');
+      const plainTextInput = document.getElementById('plain-text-input');
+      const dropZoneStatus = document.getElementById('drop-zone-status');
+
+      const countSelect = document.getElementById('question-count');
+      const difficultySelect = document.getElementById('difficulty-level');
+
+      const btnGenerate = document.getElementById('btn-generate');
+
+      const loaderOverlay = document.getElementById('loader-overlay');
+      const loaderText = document.getElementById('loader-text');
+
+      const generatedQuizContainer = document.getElementById('generated-quiz-container');
+      const editorCountBadge = document.getElementById('editor-count-badge');
+      const editorQuestionsList = document.getElementById('editor-questions-list');
+
+      const btnActivate = document.getElementById('btn-activate');
+      const btnPrint = document.getElementById('btn-print');
+      const btnGotoScanner = document.getElementById('btn-goto-scanner');
+
+      // Load saved key
+      const savedKey = localStorage.getItem('showanswer_gemini_api_key') || '';
+      geminiKeyInput.value = savedKey;
+
+      toggleKeyBtn.addEventListener('click', () => {
+        if (geminiKeyInput.type === 'password') {
+          geminiKeyInput.type = 'text';
+          toggleKeyBtn.textContent = '🙈';
+        } else {
+          geminiKeyInput.type = 'password';
+          toggleKeyBtn.textContent = '👁️';
+        }
+      });
+
+      // Drag and Drop PDF processing
+      pdfDropZone.addEventListener('click', () => pdfFileInput.click());
+      pdfDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        pdfDropZone.classList.add('dragover');
+      });
+      pdfDropZone.addEventListener('dragleave', () => {
+        pdfDropZone.classList.remove('dragover');
+      });
+      pdfDropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        pdfDropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+          handlePdfFile(e.dataTransfer.files[0]);
+        }
+      });
+      pdfFileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handlePdfFile(e.target.files[0]);
+        }
+      });
+
+      let extractedPdfText = "";
+
+      async function handlePdfFile(file) {
+        if (file.type !== "application/pdf" && !file.name.endsWith('.pdf')) {
+          alert("Please upload a valid PDF file.");
+          return;
+        }
+
+        dropZoneStatus.textContent = `Extracting text from: ${file.name}...`;
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let text = "";
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(" ") + "\n";
+          }
+
+          if (text.trim().length === 0) {
+            extractedPdfText = "";
+            dropZoneStatus.innerHTML = `⚠️ <strong>${file.name}</strong> contains no readable text layer (scanned/image-only PDF). Please copy/paste text or upload a text-based PDF.`;
+            dropZoneStatus.style.color = '#d97706';
+          } else {
+            extractedPdfText = text;
+            dropZoneStatus.innerHTML = `✅ Successfully extracted text from <strong>${file.name}</strong> (${pdf.numPages} page(s))`;
+            dropZoneStatus.style.color = 'var(--success)';
+          }
+        } catch (err) {
+          console.error("PDF Extraction failed: ", err);
+          dropZoneStatus.textContent = "❌ Failed to parse PDF file. Please copy/paste text instead.";
+          dropZoneStatus.style.color = 'var(--danger)';
+        }
+      }
+
+      // Generate button click
+      btnGenerate.addEventListener('click', async () => {
+        const apiKey = geminiKeyInput.value.trim();
+        const text = plainTextInput.value.trim();
+        const pdfText = extractedPdfText.trim();
+
+        const sourceText = text || pdfText;
+        if (!sourceText) {
+          alert("Please enter text or upload a PDF syllabus first.");
+          return;
+        }
+
+        // Save key
+        localStorage.setItem('showanswer_gemini_api_key', apiKey);
+
+        const count = parseInt(countSelect.value);
+        const difficulty = difficultySelect.value;
+
+        loaderOverlay.style.display = 'flex';
+
+        if (apiKey) {
+          loaderText.textContent = "Contacting Google Gemini AI...";
+          try {
+            const questions = await generateQuestionsWithGemini(apiKey, sourceText, count, difficulty);
+            activeQuestions = questions;
+            renderEditorCards();
+            btnActivate.disabled = false;
+            btnPrint.disabled = true; // Wait for active save
+            generatedQuizContainer.classList.remove('hidden');
+          } catch (err) {
+            alert("Gemini AI generation failed:\n" + err.message + "\n\nFalling back to Demo Generator mode.");
+            runDemoGenerator(sourceText, count);
+          }
+        } else {
+          // Fallback to Demo generator
+          runDemoGenerator(sourceText, count);
+        }
+
+        loaderOverlay.style.display = 'none';
+      });
+
+      function runDemoGenerator(sourceText, count) {
+        loaderText.textContent = "Running Demo Quiz Generator...";
+        const questions = generateMockQuestions(sourceText, count);
+        activeQuestions = questions;
+        renderEditorCards();
+        btnActivate.disabled = false;
+        btnPrint.disabled = true;
+        generatedQuizContainer.classList.remove('hidden');
+      }
+
+      // Generate using Gemini API
+      async function generateQuestionsWithGemini(key, text, count, difficulty) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+
+        // Clean up text if it is too long (limit to ~4000 words to avoid prompt length errors on free tier)
+        const truncatedText = text.substring(0, 16000);
+
+        const prompt = `You are an expert academic quiz designer.
+Analyze the following source text:
+---
+${truncatedText}
+---
+
+Generate exactly ${count} multiple-choice questions from the text.
+Difficulty level: ${difficulty.toUpperCase()}
+
+Constraints:
+1. Each question must be relevant to the source text.
+2. Provide exactly 4 options (A, B, C, D).
+3. Specify the single correct answer letter: "A", "B", "C", or "D".
+4. Ensure the correct answer matches one of the options.
+5. Provide your output ONLY as a raw JSON array matching this format (no markdown blocks, no prefix/suffix text):
+[
+  {
+    "question": "Question text here",
+    "optionA": "Choice A text",
+    "optionB": "Choice B text",
+    "optionC": "Choice C text",
+    "optionD": "Choice D text",
+    "correctAnswer": "A"
+  }
+]`;
+
+        const requestBody = {
+          contents: [{
+            parts: [{ text: prompt }]
+          }],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        };
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `API returned status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const jsonText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!jsonText) {
+          throw new Error("Invalid response format from Gemini API.");
+        }
+
+        // Clean up markdown block wraps just in case Gemini ignored responseMimeType
+        let cleanedJson = jsonText.trim();
+        if (cleanedJson.startsWith("```")) {
+          cleanedJson = cleanedJson.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+        }
+
+        const parsed = JSON.parse(cleanedJson);
+        if (!Array.isArray(parsed)) {
+          throw new Error("Generated response is not a valid questions array.");
+        }
+
+        return parsed.map(q => ({
+          question: q.question || "Generated Question text",
+          optionA: q.optionA || q.option_a || "Choice A",
+          optionB: q.optionB || q.option_b || "Choice B",
+          optionC: q.optionC || q.option_c || "Choice C",
+          optionD: q.optionD || q.option_d || "Choice D",
+          correctAnswer: (q.correctAnswer || q.correct_answer || "A").toUpperCase()
+        }));
+      }
+
+      // Local mock questions generator fallback
+      function generateMockQuestions(text, count) {
+        // Simple extraction of key words to simulate question generation
+        const words = text.split(/\s+/).filter(w => w.length > 5).map(w => w.replace(/[^a-zA-Z]/g, ''));
+        const uniqueWords = [...new Set(words)];
+
+        const demoQuiz = [];
+        for (let i = 0; i < count; i++) {
+          const keyword = uniqueWords[i % uniqueWords.length] || "Topic";
+          demoQuiz.push({
+            question: `Which of the following best defines the concept of "${keyword}" as discussed in the text?`,
+            optionA: `The core principle governing "${keyword}" processes`,
+            optionB: `An external factor unrelated to "${keyword}"`,
+            optionC: `A secondary consequence of "${keyword}" occurrences`,
+            optionD: `None of the above options describes it accurately`,
+            correctAnswer: ["A", "B", "C", "D"][i % 4]
+          });
+        }
+        return demoQuiz;
+      }
+
+      // Render questions into the editor
+      function renderEditorCards() {
+        editorQuestionsList.innerHTML = '';
+        editorCountBadge.textContent = `${activeQuestions.length} Question${activeQuestions.length > 1 ? 's' : ''}`;
+
+        activeQuestions.forEach((q, idx) => {
+          const card = document.createElement('div');
+          card.className = 'card question-editor-card';
+          card.innerHTML = `
+            <h3 class="card-title" style="margin-bottom: 12px; font-size: 1.15rem;">Question ${idx + 1}</h3>
+            
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label for="q-text-${idx}">Question Text</label>
+              <textarea id="q-text-${idx}" style="width: 100%; min-height: 50px; font-family: var(--font-sans); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); outline: none; resize: vertical;">${q.question}</textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="margin-bottom: 6px; display: block;">Options</label>
+              <div class="option-row">
+                <span class="option-letter letter-a">A</span>
+                <input type="text" id="q-optA-${idx}" value="${q.optionA}" required autocomplete="off">
+              </div>
+              <div class="option-row">
+                <span class="option-letter letter-b">B</span>
+                <input type="text" id="q-optB-${idx}" value="${q.optionB}" required autocomplete="off">
+              </div>
+              <div class="option-row">
+                <span class="option-letter letter-c">C</span>
+                <input type="text" id="q-optC-${idx}" value="${q.optionC}" required autocomplete="off">
+              </div>
+              <div class="option-row">
+                <span class="option-letter letter-d">D</span>
+                <input type="text" id="q-optD-${idx}" value="${q.optionD}" required autocomplete="off">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="q-correct-${idx}" style="font-weight: 600;">Correct Option</label>
+              <select id="q-correct-${idx}" style="width: 100%;">
+                <option value="A" ${q.correctAnswer === 'A' ? 'selected' : ''}>Option A</option>
+                <option value="B" ${q.correctAnswer === 'B' ? 'selected' : ''}>Option B</option>
+                <option value="C" ${q.correctAnswer === 'C' ? 'selected' : ''}>Option C</option>
+                <option value="D" ${q.correctAnswer === 'D' ? 'selected' : ''}>Option D</option>
+              </select>
+            </div>
+          `;
+          editorQuestionsList.appendChild(card);
+        });
+      }
+
+      // Collect updated questions from the DOM inputs
+      function getQuestionsFromInputs() {
+        const questions = [];
+        for (let i = 0; i < activeQuestions.length; i++) {
+          questions.push({
+            question: document.getElementById(`q-text-${i}`).value.trim(),
+            optionA: document.getElementById(`q-optA-${i}`).value.trim(),
+            optionB: document.getElementById(`q-optB-${i}`).value.trim(),
+            optionC: document.getElementById(`q-optC-${i}`).value.trim(),
+            optionD: document.getElementById(`q-optD-${i}`).value.trim(),
+            correctAnswer: document.getElementById(`q-correct-${i}`).value
+          });
+        }
+        return questions;
+      }
+
+      // Save & Activate Quiz
+      btnActivate.addEventListener('click', () => {
+        const questions = getQuestionsFromInputs();
+        if (questions.length === 0) return;
+
+        btnActivate.disabled = true;
+        btnActivate.textContent = "Saving...";
+
+        fetch('/api/quiz/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions })
+        })
+          .then(res => res.json())
+          .then(data => {
+            btnActivate.disabled = false;
+            btnActivate.textContent = "💾 Save & Activate Quiz";
+
+            if (data.status === 'success') {
+              alert("Quiz successfully saved and activated on the scanner!");
+              btnPrint.disabled = false; // Allow printing now that server knows about it
+
+              // Build the print layout HTML ready for print dialog
+              buildPrintLayout(questions);
+            } else {
+              alert("Failed to save the quiz: " + data.message);
+            }
+          })
+          .catch(err => {
+            btnActivate.disabled = false;
+            btnActivate.textContent = "💾 Save & Activate Quiz";
+            alert("Error contacting the server: " + err.message);
+          });
+      });
+
+      // Print Sheet Layout Builder
+      function buildPrintLayout(questions) {
+        const printContainer = document.getElementById('print-sheet-items');
+        printContainer.innerHTML = '';
+
+        const count = questions.length;
+        const startY = 80;
+        const endY = 262;
+        const availableHeight = endY - startY;
+        // Dynamically scale step spacing to fit all questions perfectly on one page
+        const stepY = Math.min(32, availableHeight / count);
+
+        questions.forEach((q, i) => {
+          const topMm = startY + i * stepY;
+          const heightMm = stepY - 2; // Subtract a small gap for visual separation
+
+          // Question text card block
+          const qBlock = document.createElement('div');
+          qBlock.className = 'absolute-element question-print-row';
+          qBlock.style.left = '20mm';
+          qBlock.style.top = `${topMm}mm`;
+          qBlock.style.height = `${heightMm}mm`;
+
+          let choicesHtml = "";
+          if (q.optionA || q.optionB || q.optionC || q.optionD) {
+            choicesHtml = `
+              <div>A. ${q.optionA || ""}</div>
+              <div>B. ${q.optionB || ""}</div>
+              <div>C. ${q.optionC || ""}</div>
+              <div>D. ${q.optionD || ""}</div>
+            `;
+          } else {
+            choicesHtml = `
+              <div>A. &nbsp;</div>
+              <div>B. &nbsp;</div>
+              <div>C. &nbsp;</div>
+              <div>D. &nbsp;</div>
+            `;
+          }
+
+          qBlock.innerHTML = `
+            <span class="q-print-title">${i + 1}. ${q.question}</span>
+            <span class="q-print-choices">${choicesHtml}</span>
+          `;
+
+          // Corresponding Answer checkbox block
+          const boxBlock = document.createElement('div');
+          boxBlock.className = 'absolute-element blue-box';
+          boxBlock.style.left = '175mm';
+          boxBlock.style.top = `${topMm}mm`;
+          boxBlock.style.width = '12mm';
+          boxBlock.style.height = '12mm';
+
+          printContainer.appendChild(qBlock);
+          printContainer.appendChild(boxBlock);
+        });
+      }
+
+      function showDesktopPrintModal() {
+        let modal = document.getElementById('mobile-print-modal');
+        if (!modal) {
+          modal = document.createElement('div');
+          modal.id = 'mobile-print-modal';
+          modal.style.position = 'fixed';
+          modal.style.top = '0';
+          modal.style.left = '0';
+          modal.style.width = '100vw';
+          modal.style.height = '100vh';
+          modal.style.backgroundColor = 'rgba(9, 9, 11, 0.95)';
+          modal.style.display = 'flex';
+          modal.style.alignItems = 'center';
+          modal.style.justifyContent = 'center';
+          modal.style.zIndex = '99999';
+          modal.style.fontFamily = "'Outfit', sans-serif";
+          modal.style.padding = '20px';
+          modal.style.boxSizing = 'border-box';
+          
+          const content = document.createElement('div');
+          content.style.backgroundColor = '#18181b';
+          content.style.border = '1px solid rgba(255, 255, 255, 0.1)';
+          content.style.borderRadius = '24px';
+          content.style.padding = '32px';
+          content.style.maxWidth = '450px';
+          content.style.width = '100%';
+          content.style.color = '#f4f4f5';
+          content.style.boxShadow = '0 20px 40px rgba(0,0,0,0.5)';
+          content.style.textAlign = 'center';
+          
+          content.innerHTML = `
+            <div style="font-size: 3.5rem; margin-bottom: 16px;">🖨️</div>
+            <h3 style="font-size: 1.4rem; font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #ffffff;">Desktop Printing Required</h3>
+            <p style="color: #a1a1aa; font-size: 0.95rem; line-height: 1.6; margin-bottom: 24px;">
+              Mobile WebViews cannot open native printer dialogs directly.<br><br>
+              To print this response sheet, please open this page on your desktop computer:
+            </p>
+            <div id="print-modal-url" style="background-color: #27272a; padding: 14px; border-radius: 12px; font-family: monospace; font-size: 0.95rem; color: #d4fc34; border: 1px solid #3f3f46; word-break: break-all; margin-bottom: 24px;">
+              http://${window.location.hostname}:8002/ocr_setup.html
+            </div>
+            <button id="close-print-modal-btn" style="background-color: #d4fc34; color: #09090b; border: none; border-radius: 9999px; padding: 12px 32px; font-size: 0.95rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+              Got it!
+            </button>
+          `;
+          modal.appendChild(content);
+          document.body.appendChild(modal);
+          
+          document.getElementById('close-print-modal-btn').addEventListener('click', () => {
+            modal.style.display = 'none';
+          });
+        }
+        modal.style.display = 'flex';
+      }
+
+      // Print response sheet
+      btnPrint.addEventListener('click', () => {
+        if (navigator.userAgent.includes("ShowAnswerMobileWebView")) {
+          if (window.PrintChannel) {
+            const questions = getQuestionsFromInputs();
+            window.PrintChannel.postMessage(JSON.stringify({
+              type: 'print_response_sheet',
+              questions: questions.map((q, i) => ({
+                text: `${i + 1}. ${q.question}`,
+                choices: [`A. ${q.optionA || ""}`, `B. ${q.optionB || ""}`, `C. ${q.optionC || ""}`, `D. ${q.optionD || ""}`]
+              })),
+              questionImage: null
+            }));
+          } else {
+            showDesktopPrintModal();
+          }
+        } else {
+          window.print();
+        }
+      });
+
+      // Redirect to scanner
+      btnGotoScanner.addEventListener('click', () => {
+        window.location.href = 'ocr_scanner.html';
+      });
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker registered successfully.', reg))
+          .catch(err => console.warn('Service Worker registration failed.', err));
+      });
+    }
+  </script>
+</body>
+
+</html>
