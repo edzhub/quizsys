@@ -435,16 +435,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           _cameraKey.currentState?.onTabFocusChanged(true);
         },
       ),
-      CameraScannerScreen(
-        key: _cameraKey,
-        onLogout: widget.onLogout,
-        onBatchProcessed: () {
-          setState(() {
-            _currentIndex = 2;
-          });
-          _gradesKey.currentState?.loadGradesHistory();
-        },
-      ),
+      CameraScannerScreen(key: _cameraKey, onLogout: widget.onLogout),
       GradesScreen(key: _gradesKey, onLogout: widget.onLogout),
     ];
   }

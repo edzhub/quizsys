@@ -4,13 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../services/ocr_service.dart';
 
 class CameraScannerScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  final VoidCallback? onBatchProcessed;
-  const CameraScannerScreen({super.key, required this.onLogout, this.onBatchProcessed});
+  const CameraScannerScreen({super.key, required this.onLogout});
 
   @override
   State<CameraScannerScreen> createState() => CameraScannerScreenState();
@@ -22,20 +20,12 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
   bool _isPermissionGranted = false;
   bool _isInitializing = true;
   bool _isScanning = false;
-  bool _isUploading = false;
   String? _statusText;
   String? _serverIp;
 
-  int _studentIndex = 1;
-  int _pageNumber = 1;
-  int _totalQuestions = 5;
-  int _expectedPagesPerStudent = 1;
-
   void onTabFocusChanged(bool isFocused) {
     if (isFocused) {
-      _loadServerIp().then((_) {
-        _fetchActiveQuizConfig();
-      });
+      _loadServerIp();
       if (_controller == null || !_controller!.value.isInitialized) {
         _requestPermissionAndInitCamera();
       }
@@ -55,24 +45,7 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _requestPermissionAndInitCamera();
-    _loadServerIp().then((_) {
-      _fetchActiveQuizConfig();
-    });
-  }
-
-  Future<void> _fetchActiveQuizConfig() async {
-    if (_serverIp == null || _serverIp!.isEmpty) return;
-    final String targetUrl = 'http://$_serverIp:8002/api/quiz/active';
-    try {
-      final response = await http.get(Uri.parse(targetUrl)).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final List<dynamic> questions = json.decode(response.body);
-        setState(() {
-          _totalQuestions = questions.isNotEmpty ? questions.length : 5;
-          _expectedPagesPerStudent = _totalQuestions > 5 ? 2 : 1;
-        });
-      }
-    } catch (_) {}
+    _loadServerIp();
   }
 
   Future<void> _loadServerIp() async {
@@ -239,96 +212,10 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
   }
 
   Future<void> _captureAndScan() async {
-    if (_controller == null || !_controller!.value.isInitialized || _isScanning || _isUploading) {
+    if (_controller == null || !_controller!.value.isInitialized || _isScanning) {
       return;
     }
 
-    if (_serverIp == null || _serverIp!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Color(0xFFEF4444),
-          content: Text('Please configure the PC Server IP in settings first.', style: TextStyle(color: Colors.white)),
-        ),
-      );
-      _showIpSettingsDialog();
-      return;
-    }
-
-    setState(() {
-      _isUploading = true;
-    });
-
-    try {
-      final XFile imageFile = await _controller!.takePicture();
-
-      // Read file bytes and encode to base64
-      final bytes = await File(imageFile.path).readAsBytes();
-      final base64Image = base64Encode(bytes);
-
-      // Delete captured temp file to save space
-      try { await File(imageFile.path).delete(); } catch (_) {}
-
-      // Upload page to Express server
-      final result = await OcrService.uploadPage(
-        serverIp: _serverIp!,
-        studentIndex: _studentIndex,
-        pageNumber: _pageNumber,
-        base64Image: base64Image,
-      );
-
-      setState(() {
-        _isUploading = false;
-      });
-
-      if (result['status'] == 'error') {
-        _showErrorDialog(result['message'] ?? 'Failed to upload sheet page.');
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: const Color(0xFF10B981),
-              content: Text(
-                'Student $_studentIndex, Page $_pageNumber successfully uploaded!',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-
-          setState(() {
-            // Check if we need to progress page number
-            if (_expectedPagesPerStudent > _pageNumber) {
-              _pageNumber++;
-            }
-          });
-        }
-      }
-    } catch (e) {
-      setState(() {
-        _isUploading = false;
-      });
-      _showErrorDialog('Upload failed: ${e.toString()}');
-    }
-  }
-
-  void _nextStudent() {
-    setState(() {
-      _studentIndex++;
-      _pageNumber = 1;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(0xFFD4FC34),
-        content: Text(
-          'Moved to Student #$_studentIndex',
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF09090B)),
-        ),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  Future<void> _processBatch() async {
     if (_serverIp == null || _serverIp!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -342,11 +229,32 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
 
     setState(() {
       _isScanning = true;
-      _statusText = "⚙️ Processing batch scans...";
+      _statusText = "📸 Capturing sheet...";
     });
 
     try {
-      final result = await OcrService.processBatch(serverIp: _serverIp!);
+      final XFile imageFile = await _controller!.takePicture();
+
+      setState(() {
+        _statusText = "🗜️ Compressing image...";
+      });
+
+      // Read file bytes and encode to base64
+      final bytes = await File(imageFile.path).readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      // Delete captured temp file to save space
+      try { await File(imageFile.path).delete(); } catch (_) {}
+
+      setState(() {
+        _statusText = "⬆️ Uploading to server...";
+      });
+
+      // Call OcrService — it resizes image + sends to RapidOCR Python server
+      final result = await OcrService.scanImage(
+        serverIp: _serverIp!,
+        base64Image: base64Image,
+      );
 
       setState(() {
         _isScanning = false;
@@ -354,30 +262,64 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
       });
 
       if (result['status'] == 'error') {
-        _showErrorDialog(result['message'] ?? 'Batch processing failed.');
+        final String rawMsg = result['message'] ?? 'Failed to parse image.';
+        if (rawMsg.startsWith('timeout:')) {
+          _showErrorDialog(
+            '⏱️ Scan timed out.\n\n'
+            'The server took too long to respond. Make sure:\n'
+            '• Python server is running on the PC\n'
+            '• Phone and PC are on the same Wi-Fi\n'
+            '• The IP address is correct\n\n'
+            '${rawMsg.substring(8)}',
+          );
+        } else if (rawMsg.startsWith('socket:')) {
+          _showErrorDialog(
+            '📡 Cannot reach the PC server.\n\n'
+            'Make sure:\n'
+            '• The Python server is running on the PC\n'
+            '• Both phone and PC are on the same Wi-Fi\n'
+            '• The IP address is correct\n\n'
+            'Detail: ${rawMsg.substring(7)}',
+          );
+        } else {
+          _showErrorDialog(rawMsg);
+        }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Color(0xFF10B981),
-              content: Text('Batch processed and grades imported successfully!', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-          );
-          // Reset local tracking state
-          setState(() {
-            _studentIndex = 1;
-            _pageNumber = 1;
-          });
-          // Switch to Analysis tab
-          widget.onBatchProcessed?.call();
+          List<dynamic> rawAnswers = result['answers'] ?? [];
+          List<String> answers = rawAnswers.map((v) => v.toString()).toList();
+          while (answers.length < 5) {
+            answers.add('?');
+          }
+          final Map<String, dynamic> formattedResult = {
+            'roll_no': result['roll_no']?.toString() ?? '',
+            'class': result['class']?.toString() ?? '',
+            'section': result['section']?.toString() ?? '',
+            'answers': answers,
+            'annotated_image': result['annotated_image']?.toString() ?? '',
+          };
+          _showVerifyAndSaveDialog(formattedResult);
         }
       }
+    } on SocketException catch (e) {
+      setState(() {
+        _isScanning = false;
+        _statusText = null;
+      });
+      _showErrorDialog(
+        '📡 Cannot reach the PC server.\n\n'
+        'Make sure:\n'
+        '• The Python server is running on the PC\n'
+        '• Both phone and PC are on the same Wi-Fi\n'
+        '• The IP address is correct\n\n'
+        'Detail: ${e.message}',
+      );
     } catch (e) {
       setState(() {
         _isScanning = false;
         _statusText = null;
       });
-      _showErrorDialog('Batch processing failed: ${e.toString()}');
+      _showErrorDialog('Scan failed: ${e.toString()}');
     }
   }
 
@@ -740,36 +682,19 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
                             bottom: 0, right: 0,
                             child: Container(width: 32, height: 32, decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFD4FC34), width: 4), right: BorderSide(color: Color(0xFFD4FC34), width: 4)))),
                           ),
-                          Center(
+                          const Center(
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    'Student #$_studentIndex\nPage $_pageNumber of $_expectedPagesPerStudent',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 24.0,
-                                      color: Color(0xFFD4FC34),
-                                      fontWeight: FontWeight.bold,
-                                      shadows: [Shadow(color: Colors.black, blurRadius: 6)],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12.0),
-                                  const Text(
-                                    'Align 4 corner anchors inside the brackets\nand snap picture to upload',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: 'Outfit',
-                                      fontSize: 13.0,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w500,
-                                      shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                                    ),
-                                  ),
-                                ],
+                              padding: EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Text(
+                                'Align 4 corner anchors inside the brackets\nand hold steady',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13.0,
+                                  color: Color(0xFFD4FC34),
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                ),
                               ),
                             ),
                           ),
@@ -820,76 +745,42 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
             ),
           ),
 
-          // Shoot & Batch Controls Button row
+          // Shoot Trigger Button
           Positioned(
             bottom: 0, left: 0, right: 0,
             child: Container(
-              padding: const EdgeInsets.only(bottom: 32.0, top: 20.0, left: 16.0, right: 16.0),
+              padding: const EdgeInsets.only(bottom: 40.0, top: 20.0),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter, end: Alignment.topCenter,
-                  colors: [Colors.black.withOpacity(0.85), Colors.transparent],
+                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Process Batch Button
-                  ElevatedButton.icon(
-                    onPressed: _studentIndex > 1 || _pageNumber > 1 ? _processBatch : null,
-                    icon: const Icon(Icons.analytics, size: 20.0),
-                    label: const Text('Process Batch', style: TextStyle(fontFamily: 'Outfit', fontSize: 13.0)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF27272A),
-                      foregroundColor: const Color(0xFFD4FC34),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                    ),
-                  ),
-
-                  // Camera capture button with uploading loader
-                  _isUploading
-                      ? const SizedBox(
-                          width: 76,
-                          height: 76,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 4,
-                            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4FC34)),
-                          ),
-                        )
-                      : GestureDetector(
-                          onTap: _captureAndScan,
-                          child: Container(
-                            width: 76, height: 76,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFFD4FC34),
-                              border: Border.all(color: const Color(0xFF09090B), width: 6),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFD4FC34).withOpacity(0.3),
-                                  blurRadius: 15, spreadRadius: 2,
-                                ),
-                              ],
+                  Center(
+                    child: GestureDetector(
+                      onTap: _captureAndScan,
+                      child: Container(
+                        width: 76, height: 76,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFD4FC34),
+                          border: Border.all(color: const Color(0xFF09090B), width: 6),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFD4FC34).withOpacity(0.3),
+                              blurRadius: 15, spreadRadius: 2,
                             ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 32,
-                              color: Color(0xFF09090B),
-                            ),
-                          ),
+                          ],
                         ),
-
-                  // Next Student Button
-                  ElevatedButton.icon(
-                    onPressed: _nextStudent,
-                    icon: const Icon(Icons.navigate_next, size: 20.0),
-                    label: const Text('Next Student', style: TextStyle(fontFamily: 'Outfit', fontSize: 13.0)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD4FC34),
-                      foregroundColor: const Color(0xFF09090B),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          size: 32,
+                          color: Color(0xFF09090B),
+                        ),
+                      ),
                     ),
                   ),
                 ],
