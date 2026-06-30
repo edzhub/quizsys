@@ -16,19 +16,15 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [1/2] Starting Classroom Hub (Port 8000)...
-start "ShowAnswer - Classroom Hub (Port 8000)" cmd /k "cd CardGeneratorProject && python start_app.py"
-
-echo [2/2] Starting Question Setup & Scanner (Port 8002)...
-start "ShowAnswer - Question Scanner (Port 8002)" cmd /k "cd QuestionScannerProject && python start_app.py"
+echo Starting Unified Portal Server (Port 8000)...
+start "ShowAnswer Unified Portal Server (Port 8000)" cmd /k "cd QuestionScannerProject && python start_app.py"
 
 echo.
 echo ======================================================
-echo Both servers are launching!
-echo - Admin Portal / Classroom Hub: http://localhost:8000
-echo - Teacher Portal / Scanner:     http://localhost:8002
+echo Server is launching!
+echo - Unified Login Portal: http://localhost:8000/admin/login.html
 echo ======================================================
 echo.
-echo To stop the servers, simply close their respective command windows.
+echo To stop the server, simply close the command window.
 echo.
 pause

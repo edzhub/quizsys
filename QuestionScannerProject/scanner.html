@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <script>
@@ -71,7 +71,7 @@
         <button id="btn-next-question" class="btn btn-primary" style="padding: 6px 20px; font-weight: 600; font-size: 0.95rem; box-shadow: var(--shadow-sm);">Next Question ➡</button>
       </div>
 
-      <span id="classroom-hub-status" class="badge" style="background-color: var(--text-muted); cursor: pointer;" title="Ensure CardGeneratorProject is running to sync roster" onclick="window.open('http://' + window.location.hostname + ':8000')">Class Roster (Port 8000)</span>
+      <span id="classroom-hub-status" class="badge" style="background-color: var(--text-muted); cursor: pointer;" title="Ensure CardGeneratorProject is running to sync roster" onclick="const isUnified = window.location.pathname.startsWith('/teacher/'); window.open(isUnified ? '/admin/index.html' : 'http://' + window.location.hostname + ':8000')">Class Roster (Port 8000)</span>
     </div>
 
     <!-- Active Question Card -->

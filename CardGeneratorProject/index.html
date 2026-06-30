@@ -74,7 +74,7 @@
       <a href="index.html" class="tab-btn active" style="text-decoration: none;">🏫 Classroom Hub</a>
       <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
       <a href="ocr_sheet.html" class="tab-btn" style="text-decoration: none;">📄 OCR Templates</a>
-      <a href="#" onclick="window.location.href='http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+      <a href="#" onclick="const isUnified = window.location.pathname.startsWith('/admin/'); window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
     </div>
 
 

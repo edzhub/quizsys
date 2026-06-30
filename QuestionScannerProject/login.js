@@ -89,11 +89,11 @@ window.addEventListener('DOMContentLoaded', () => {
         hideToast();
         
         // Redirect based on role
+        const isUnified = window.location.pathname.startsWith('/teacher/');
         if (data.role === 'Teacher') {
-          window.location.href = 'index.html';
+          window.location.href = isUnified ? '/teacher/index.html' : 'index.html';
         } else {
-          // Redirect to port 8000 for admin (Classroom Hub)
-          window.location.href = 'http://' + window.location.hostname + ':8000/index.html';
+          window.location.href = isUnified ? '/admin/index.html' : 'http://' + window.location.hostname + ':8000/index.html';
         }
       } else {
         otpErrorBanner.textContent = data.message || "Invalid or expired passcode.";

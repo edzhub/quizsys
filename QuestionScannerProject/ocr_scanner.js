@@ -39,7 +39,8 @@ async function testServerConnection() {
     return false;
   }
   
-  const serverUrl = `http://${ip}:8002/api/class`;
+  const port = window.location.port || '8000';
+  const serverUrl = `http://${ip}:${port}/api/class`;
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -177,7 +178,8 @@ captureBtn.addEventListener('click', async () => {
     spinnerStatus.textContent = "Extracting handwriting (EasyOCR)...";
     
     // Send request to Python server
-    const serverUrl = `http://${ip}:8002/api/ocr/scan`;
+    const port = window.location.port || '8000';
+    const serverUrl = `http://${ip}:${port}/api/ocr/scan`;
     const response = await fetch(serverUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -201,7 +203,7 @@ captureBtn.addEventListener('click', async () => {
     }
   } catch (err) {
     spinnerOverlay.classList.remove('active');
-    alert("Failed to perform OCR scan:\n" + err.message + "\n\nVerify that the Python OCR Server is running on port 8002 and is reachable from your mobile phone.");
+    alert("Failed to perform OCR scan:\n" + err.message + "\n\nVerify that the Python OCR Server is running on port " + (window.location.port || '8000') + " and is reachable from your mobile phone.");
   }
 });
 
