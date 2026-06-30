@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+    (function() {
+      const token = localStorage.getItem('showanswer_session_token');
+      const role = localStorage.getItem('showanswer_session_role');
+      if (!token || role !== 'Admin') {
+        window.location.href = 'login.html';
+      } else {
+        fetch('/api/auth/check?token=' + token)
+          .then(res => res.json())
+          .then(data => {
+            if (data.status !== 'success' || data.role !== 'Admin') {
+              localStorage.clear();
+              window.location.href = 'login.html';
+            }
+          })
+          .catch(() => {});
+      }
+    })();
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ShowAnswer — Manage Teachers</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#09090b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .teacher-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    .teacher-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+    .teacher-table td {
+      padding: 12px 14px;
+      color: var(--text-main);
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+    .teacher-table tr:last-child td { border-bottom: none; }
+    .teacher-table tbody tr:hover { background-color: rgba(255,255,255,0.03); }
+    .role-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .role-admin { background: rgba(212,252,52,0.15); color: #d4fc34; border: 1px solid rgba(212,252,52,0.25); }
+    .role-teacher { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+    .toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #18181b;
+      color: var(--text-main);
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 9999;
+      max-width: 90vw;
+      text-align: center;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: rgba(16,185,129,0.4); color: #10b981; }
+    .toast.error { border-color: rgba(239,68,68,0.4); color: #ef4444; }
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: #18181b;
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 28px 32px;
+      width: min(420px, 90vw);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6);
+      transform: scale(0.95);
+      transition: transform 0.2s ease;
+    }
+    .modal-overlay.active .modal-box { transform: scale(1); }
+    .modal-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+    .modal-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .modal-actions {
+      display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;
+    }
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <div id="app-container" class="screen-only">
+
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-logo" style="cursor: pointer;" onclick="window.location.href='index.html';">
+        <span class="logo-icon">👩‍🏫</span>
+        <h1>ShowAnswer <span class="badge">Manage Teachers</span></h1>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="header-desc">Admin Portal — User Management</div>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <a href="index.html" class="tab-btn" style="text-decoration: none;">🏫 Classroom Hub</a>
+      <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
+      <a href="ocr_sheet.html" class="tab-btn" style="text-decoration: none;">📄 OCR Templates</a>
+      <a href="manage_teachers.html" class="tab-btn active" style="text-decoration: none;">👩‍🏫 Manage Teachers</a>
+      <a href="#" onclick="const isUnified = window.location.pathname.startsWith('/admin/'); window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+    </div>
+
+    <!-- Main Content -->
+    <main class="app-content">
+      <div class="grid-2col">
+
+        <!-- Add Teacher Form -->
+        <div class="card">
+          <h2 class="card-title">➕ Add New Teacher</h2>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px; line-height: 1.5;">
+            Create a new teacher account. The teacher will be able to log in at the Teacher Portal using these credentials.
+          </p>
+          <form id="add-teacher-form" class="roster-form">
+            <div class="form-group">
+              <label for="new-username">Username</label>
+              <input type="text" id="new-username" placeholder="e.g. mrsmith" required autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="new-password">Password</label>
+              <input type="password" id="new-password" placeholder="e.g. teacher456" required autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label for="confirm-password">Confirm Password</label>
+              <input type="password" id="confirm-password" placeholder="Re-enter password" required autocomplete="off">
+            </div>
+            <button type="submit" id="add-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">
+              ➕ Add Teacher
+            </button>
+          </form>
+        </div>
+
+        <!-- Teachers List -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">All Teachers (<span id="teacher-count">0</span>)</h2>
+            <button onclick="loadUsers()" class="btn btn-outline btn-sm">🔄 Refresh</button>
+          </div>
+          <div class="table-container" id="teacher-table-container">
+            <div class="empty-state">
+              <span class="spinner"></span> Loading teachers...
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title">🗑️ Delete Teacher Account</div>
+      <div class="modal-desc">
+        Are you sure you want to delete teacher <strong id="delete-target-name"></strong>?<br>
+        This will permanently remove their account and log them out immediately.
+      </div>
+      <div class="modal-actions">
+        <button onclick="closeDeleteModal()" class="btn btn-outline btn-sm">Cancel</button>
+        <button id="confirm-delete-btn" class="btn btn-danger btn-sm">🗑️ Yes, Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const token = localStorage.getItem('showanswer_session_token');
+    let pendingDeleteUsername = null;
+
+    // --- Toast ---
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast ${type} show`;
+      setTimeout(() => { t.className = 'toast'; }, 3000);
+    }
+
+    // --- Load Users ---
+    async function loadUsers() {
+      const container = document.getElementById('teacher-table-container');
+      container.innerHTML = '<div class="empty-state"><span class="spinner"></span> Loading...</div>';
+
+      try {
+        const res = await fetch(`/api/users?token=${token}`);
+        const data = await res.json();
+
+        if (data.status !== 'success') {
+          container.innerHTML = `<div class="empty-state"><span class="icon">⚠️</span>${data.message || 'Failed to load users'}</div>`;
+          return;
+        }
+
+        const users = data.users;
+        const teachers = users.filter(u => u.role === 'Teacher');
+        document.getElementById('teacher-count').textContent = teachers.length;
+
+        if (users.length === 0) {
+          container.innerHTML = '<div class="empty-state"><span class="icon">👥</span>No users found.</div>';
+          return;
+        }
+
+        let html = `<table class="teacher-table">
+          <thead><tr>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Action</th>
+          </tr></thead><tbody>`;
+
+        for (const user of users) {
+          const roleBadge = user.role === 'Admin'
+            ? '<span class="role-badge role-admin">Admin</span>'
+            : '<span class="role-badge role-teacher">Teacher</span>';
+
+          const deleteBtn = user.role === 'Admin'
+            ? '<span style="color: var(--text-muted); font-size: 0.8rem;">Protected</span>'
+            : `<button class="btn btn-danger btn-sm" onclick="promptDelete('${user.username.replace(/'/g, "\\'")}')" style="padding: 4px 12px; font-size: 0.8rem;">🗑️ Delete</button>`;
+
+          html += `<tr>
+            <td><strong>${user.username}</strong></td>
+            <td>${roleBadge}</td>
+            <td>${deleteBtn}</td>
+          </tr>`;
+        }
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><span class="icon">⚠️</span>Failed to load users: ${err.message}</div>`;
+      }
+    }
+
+    // --- Add Teacher ---
+    document.getElementById('add-teacher-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('new-username').value.trim();
+      const password = document.getElementById('new-password').value.trim();
+      const confirm = document.getElementById('confirm-password').value.trim();
+
+      if (password !== confirm) {
+        showToast('❌ Passwords do not match', 'error');
+        return;
+      }
+      if (username.length < 3) {
+        showToast('❌ Username must be at least 3 characters', 'error');
+        return;
+      }
+      if (password.length < 4) {
+        showToast('❌ Password must be at least 4 characters', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('add-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Adding...';
+
+      try {
+        const res = await fetch('/api/users/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, username, password })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          showToast(`✅ Teacher '${username}' added!`, 'success');
+          document.getElementById('add-teacher-form').reset();
+          loadUsers();
+        } else {
+          showToast(`❌ ${data.message}`, 'error');
+        }
+      } catch (err) {
+        showToast(`❌ Error: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '➕ Add Teacher';
+      }
+    });
+
+    // --- Delete Modal ---
+    function promptDelete(username) {
+      pendingDeleteUsername = username;
+      document.getElementById('delete-target-name').textContent = username;
+      document.getElementById('delete-modal').classList.add('active');
+    }
+
+    function closeDeleteModal() {
+      pendingDeleteUsername = null;
+      document.getElementById('delete-modal').classList.remove('active');
+    }
+
+    document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+      if (!pendingDeleteUsername) return;
+      const username = pendingDeleteUsername;
+      const btn = document.getElementById('confirm-delete-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Deleting...';
+
+      try {
+        const res = await fetch('/api/users/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, username })
+        });
+        const data = await res.json();
+        closeDeleteModal();
+        if (data.status === 'success') {
+          showToast(`✅ Teacher '${username}' deleted`, 'success');
+          loadUsers();
+        } else {
+          showToast(`❌ ${data.message}`, 'error');
+        }
+      } catch (err) {
+        closeDeleteModal();
+        showToast(`❌ Error: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '🗑️ Yes, Delete';
+      }
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('delete-modal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeDeleteModal();
+    });
+
+    // Initial load
+    loadUsers();
+  </script>
+</body>
+</html>

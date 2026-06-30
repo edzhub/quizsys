@@ -1166,6 +1166,44 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(report).encode('utf-8'))
             return
             
+        # API: List all users (Admin only)
+        elif self.path.split('?')[0] == "/api/users":
+            # Extract token from query string or Authorization header
+            token = None
+            auth_header = self.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+            if not token and '?' in self.path:
+                for p in self.path.split('?')[1].split('&'):
+                    if p.startswith('token='):
+                        token = p.split('=', 1)[1]
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            try:
+                if not token:
+                    self.wfile.write(json.dumps({"status": "error", "message": "Unauthorized"}).encode('utf-8'))
+                    return
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                cursor.execute("SELECT username, role FROM sessions WHERE token = ?", (token,))
+                session = cursor.fetchone()
+                if not session or session[1] != 'Admin':
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": "Forbidden: Admin only"}).encode('utf-8'))
+                    return
+                cursor.execute("SELECT username, role FROM users ORDER BY role ASC, username ASC")
+                rows = cursor.fetchall()
+                conn.close()
+                users = [{"username": r[0], "role": r[1]} for r in rows]
+                self.wfile.write(json.dumps({"status": "success", "users": users}).encode('utf-8'))
+            except Exception as e:
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
+
         # Static file serving defaults to index.html
         if self.path == "/":
             self.path = "/index.html"
@@ -1269,6 +1307,98 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+            return
+
+        # API: Add a new Teacher (Admin only)
+        elif self.path == "/api/users/add":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                token = data.get("token")
+                new_username = (data.get("username") or "").strip()
+                new_password = (data.get("password") or "").strip()
+
+                if not token or not new_username or not new_password:
+                    self.wfile.write(json.dumps({"status": "error", "message": "Token, username, and password are required"}).encode('utf-8'))
+                    return
+
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                cursor.execute("SELECT role FROM sessions WHERE token = ?", (token,))
+                session = cursor.fetchone()
+                if not session or session[0] != 'Admin':
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": "Forbidden: Admin only"}).encode('utf-8'))
+                    return
+
+                # Check if username already exists
+                cursor.execute("SELECT username FROM users WHERE username = ?", (new_username,))
+                if cursor.fetchone():
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": f"Username '{new_username}' already exists"}).encode('utf-8'))
+                    return
+
+                cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, 'Teacher')", (new_username, new_password))
+                conn.commit()
+                conn.close()
+                print(f"[Admin] New teacher '{new_username}' added.", flush=True)
+                self.wfile.write(json.dumps({"status": "success", "message": f"Teacher '{new_username}' added successfully"}).encode('utf-8'))
+            except Exception as e:
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
+
+        # API: Delete a Teacher (Admin only, cannot delete admin)
+        elif self.path == "/api/users/delete":
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            try:
+                data = json.loads(post_data.decode('utf-8'))
+                token = data.get("token")
+                target_username = (data.get("username") or "").strip()
+
+                if not token or not target_username:
+                    self.wfile.write(json.dumps({"status": "error", "message": "Token and username are required"}).encode('utf-8'))
+                    return
+
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                cursor.execute("SELECT role FROM sessions WHERE token = ?", (token,))
+                session = cursor.fetchone()
+                if not session or session[0] != 'Admin':
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": "Forbidden: Admin only"}).encode('utf-8'))
+                    return
+
+                # Protect admin account from deletion
+                cursor.execute("SELECT role FROM users WHERE username = ?", (target_username,))
+                user_row = cursor.fetchone()
+                if not user_row:
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": f"User '{target_username}' not found"}).encode('utf-8'))
+                    return
+                if user_row[0] == 'Admin':
+                    conn.close()
+                    self.wfile.write(json.dumps({"status": "error", "message": "Cannot delete an Admin account"}).encode('utf-8'))
+                    return
+
+                cursor.execute("DELETE FROM users WHERE username = ?", (target_username,))
+                cursor.execute("DELETE FROM sessions WHERE username = ?", (target_username,))
+                cursor.execute("DELETE FROM otps WHERE username = ?", (target_username,))
+                conn.commit()
+                conn.close()
+                print(f"[Admin] Teacher '{target_username}' deleted.", flush=True)
+                self.wfile.write(json.dumps({"status": "success", "message": f"Teacher '{target_username}' deleted successfully"}).encode('utf-8'))
+            except Exception as e:
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
             return
 
         # API: Upload Multiple Quizzes (e.g. Monday, Tuesday, etc. all at once)
