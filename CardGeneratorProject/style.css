@@ -245,6 +245,7 @@ label {
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
 select {
   font-family: var(--font-sans);
   background-color: var(--bg-input);

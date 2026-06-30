@@ -138,6 +138,25 @@
       color: var(--text-muted);
     }
     .empty-state .icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+    
+    /* Ensure password inputs match styling */
+    input[type="password"] {
+      font-family: var(--font-sans);
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      outline: none;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+    input[type="password"]:focus {
+      border-color: var(--primary);
+      background-color: var(--bg-card);
+      box-shadow: 0 0 0 3px rgba(212, 252, 52, 0.15);
+    }
   </style>
 </head>
 <body>
