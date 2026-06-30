@@ -2,6 +2,23 @@
 <html lang="en">
 <head>
   <script>
+    // Global error listener for mobile debugging
+    window.addEventListener('error', function(e) {
+      const errDiv = document.createElement('div');
+      errDiv.style.position = 'fixed';
+      errDiv.style.top = '0';
+      errDiv.style.left = '0';
+      errDiv.style.width = '100%';
+      errDiv.style.background = '#ef4444';
+      errDiv.style.color = '#ffffff';
+      errDiv.style.padding = '12px';
+      errDiv.style.zIndex = '999999';
+      errDiv.style.fontSize = '12px';
+      errDiv.style.fontFamily = 'monospace';
+      errDiv.textContent = 'JS Error: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')';
+      document.body.appendChild(errDiv);
+    });
+
     (function() {
       const token = localStorage.getItem('showanswer_session_token');
       const role = localStorage.getItem('showanswer_session_role');
@@ -21,7 +38,7 @@
     })();
   </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Classroom Hub</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -46,26 +63,37 @@
         <span class="logo-icon">🏫</span>
         <h1>ShowAnswer <span class="badge">Classroom Hub</span></h1>
       </div>
-      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 16px;">
         <div class="header-desc">Web Classroom Polls — Portal Hub</div>
-        <button onclick="window.location.href='http://' + window.location.hostname + ':8002';" class="btn btn-primary btn-sm" style="padding: 6px 12px; font-weight:600; border-radius:6px; background-color: var(--primary); color: #09090b; border: none; cursor: pointer;">Teacher Portal ➔</button>
-        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 12px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
+        <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
       </div>
     </header>
 
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <a href="index.html" class="tab-btn active" style="text-decoration: none;">🏫 Classroom Hub</a>
+      <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
+      <a href="ocr_sheet.html" class="tab-btn" style="text-decoration: none;">📄 OCR Templates</a>
+      <a href="#" onclick="window.location.href='http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+    </div>
+
+
+
     <!-- Micro-Frontend Launcher Grid -->
     <div class="portal-links-container">
-      <a href="/generator.html" target="_blank" id="open-generator-link" class="portal-card">
+      <a href="generator.html" id="open-generator-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
         <div class="portal-info">
           <span class="portal-title">🖨️ Card Generator <span class="badge">Open Generator</span></span>
           <span class="portal-desc">Preview and print A4-optimized ArUco polling cards</span>
         </div>
+        <div id="status-generator" class="portal-status-badge disconnected">Standalone</div>
       </a>
-      <a href="/ocr_sheet.html" target="_blank" id="open-ocr-sheet-link" class="portal-card">
+      <a href="ocr_sheet.html" id="open-ocr-sheet-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
         <div class="portal-info">
           <span class="portal-title">📝 Print OCR Sheets <span class="badge">Open PDF Sheet</span></span>
           <span class="portal-desc">Preview and print handwritten answer sheets for scanning</span>
         </div>
+        <div id="status-ocr-sheet" class="portal-status-badge disconnected">Printable</div>
       </a>
     </div>
 

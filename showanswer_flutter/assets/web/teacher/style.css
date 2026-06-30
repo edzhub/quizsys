@@ -11,8 +11,8 @@
   --text-muted: #a1a1aa; /* Soft gray description */
   --border-color: rgba(255, 255, 255, 0.08); /* White opacity border */
 
-  --primary: #d4fc34; /* Neon lime */
-  --primary-hover: #c5f01e;
+  --primary: #fc4a44; /* Neon lime */
+  --primary-hover: #c5f013;
   --accent: #d4fc34; /* Neon lime */
   --accent-hover: #c5f01e;
   --danger: #ef4444;
@@ -94,7 +94,7 @@ body {
 
 .badge {
   font-size: 0.7rem;
-  background-color: var(--primary);
+  background-color: var(--text-main);
   color: #09090b;
   padding: 2px 10px;
   border-radius: 9999px;
@@ -1293,10 +1293,37 @@ tr:last-child td {
 }
 
 @media (max-width: 600px) {
-  .header-desc {
-    display: none !important;
+  /* Tab nav scrollable row */
+  .tab-nav {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    justify-content: flex-start !important;
+    padding: 6px 8px !important;
+    gap: 4px !important;
   }
-  html.lock-scroll, body.lock-scroll {
+
+  .tab-btn {
+    padding: 8px 14px !important;
+    font-size: 0.8rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .portal-links-container {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  html, body {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
@@ -1304,13 +1331,13 @@ tr:last-child td {
     overflow: hidden !important; /* Lock scrolling */
     background-color: var(--bg-main) !important;
   }
-  body.lock-scroll {
+  body {
     padding: 8px !important;
     display: flex !important;
     flex-direction: column !important;
     box-sizing: border-box !important;
   }
-  body.lock-scroll #app-container {
+  #app-container {
     height: 100% !important;
     display: flex !important;
     flex-direction: column !important;
@@ -1432,36 +1459,5 @@ tr:last-child td {
   .stabilizing-status-box,
   .locked-responses-box {
     display: none !important; /* Hide scroll tables from the main scanning screen */
-  }
-}
-
-/* Bottom Tab Nav Bar Mobile Responsiveness */
-@media (max-width: 600px) {
-  .tab-nav {
-    bottom: 8px !important;
-    width: 96% !important;
-    left: 2% !important;
-    transform: none !important;
-    border-radius: 16px !important;
-    justify-content: space-around !important;
-    padding: 4px !important;
-    gap: 2px !important;
-  }
-  .tab-btn {
-    font-size: 0.65rem !important;
-    padding: 8px 10px !important;
-    letter-spacing: -0.5px !important;
-    gap: 4px !important;
-    flex: 1 !important;
-    justify-content: center !important;
-  }
-}
-@media (max-width: 480px) {
-  .tab-btn {
-    font-size: 0 !important; /* Hide text, keep emoji */
-    padding: 10px !important;
-  }
-  .tab-btn::first-letter {
-    font-size: 1.25rem !important; /* Keep emoji readable */
   }
 }

@@ -3,6 +3,23 @@
 
 <head>
   <script>
+    // Global error listener for mobile debugging
+    window.addEventListener('error', function(e) {
+      const errDiv = document.createElement('div');
+      errDiv.style.position = 'fixed';
+      errDiv.style.top = '0';
+      errDiv.style.left = '0';
+      errDiv.style.width = '100%';
+      errDiv.style.background = '#ef4444';
+      errDiv.style.color = '#ffffff';
+      errDiv.style.padding = '12px';
+      errDiv.style.zIndex = '999999';
+      errDiv.style.fontSize = '12px';
+      errDiv.style.fontFamily = 'monospace';
+      errDiv.textContent = 'JS Error: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')';
+      document.body.appendChild(errDiv);
+    });
+
     (function() {
       const token = localStorage.getItem('showanswer_session_token');
       const role = localStorage.getItem('showanswer_session_role');
@@ -22,7 +39,7 @@
     })();
   </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Card Generator</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -52,7 +69,7 @@
         <h1>ShowAnswer <span class="badge">Card Generator</span></h1>
       </div>
       <div class="header-desc">
-        <span id="sync-status" class="sync-indicator unsynced">🔴 Unsynced (Open Classroom Hub first)</span>
+        <span id="sync-status" class="sync-indicator unsynced">🔄 Loading class list...</span>
       </div>
     </header>
 
@@ -110,8 +127,8 @@
 
         <div id="no-roster-placeholder" style="text-align: center; color: var(--text-muted);">
           <span style="font-size: 3rem; display: block; margin-bottom: 12px;">🖨️</span>
-          <p>Class list not loaded. Please open or refresh the <a href="/" target="_blank"
-              style="color: var(--primary); font-weight: 500;">Classroom Hub</a> tab to sync.</p>
+          <p>Class list not loaded. Please go back to the
+              <a href="/" style="color: var(--primary); font-weight: 500;">Classroom Hub</a> and load a student CSV first.</p>
         </div>
       </div>
     </div>

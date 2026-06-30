@@ -12,22 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const otpErrorBanner = document.getElementById('otp-error-banner');
   const btnBack = document.getElementById('btn-back');
   
-  // OTP Inputs auto-focus jump setup
-  const otpBoxes = Array.from(document.querySelectorAll('.otp-box'));
-  otpBoxes.forEach((box, idx) => {
-    box.addEventListener('input', (e) => {
-      const val = e.target.value;
-      if (val.length === 1 && idx < otpBoxes.length - 1) {
-        otpBoxes[idx + 1].focus();
-      }
-    });
-
-    box.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && box.value === '' && idx > 0) {
-        otpBoxes[idx - 1].focus();
-      }
-    });
-  });
+  // Single OTP input - auto-focus on show
 
   // Handle back button from OTP screen
   btnBack.addEventListener('click', () => {
@@ -58,7 +43,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // Show OTP section
         credSection.style.display = 'none';
         otpSection.style.display = 'block';
-        otpBoxes[0].focus();
+        document.getElementById('otp-input').value = '';
+        document.getElementById('otp-input').focus();
         
         // Show toast with OTP for easy user input
         showToast(simulatedOtp);
@@ -79,10 +65,10 @@ window.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     otpErrorBanner.style.display = 'none';
 
-    // Combine OTP boxes
-    const otp = otpBoxes.map(box => box.value).join('');
+    // Read single OTP input
+    const otp = document.getElementById('otp-input').value.trim();
     if (otp.length !== 6) {
-      otpErrorBanner.textContent = "Please enter all 6 digits.";
+      otpErrorBanner.textContent = "Please enter the full 6-digit code.";
       otpErrorBanner.style.display = 'block';
       return;
     }
@@ -112,8 +98,8 @@ window.addEventListener('DOMContentLoaded', () => {
       } else {
         otpErrorBanner.textContent = data.message || "Invalid or expired passcode.";
         otpErrorBanner.style.display = 'block';
-        otpBoxes.forEach(box => box.value = '');
-        otpBoxes[0].focus();
+        document.getElementById('otp-input').value = '';
+        document.getElementById('otp-input').focus();
       }
     })
     .catch(err => {

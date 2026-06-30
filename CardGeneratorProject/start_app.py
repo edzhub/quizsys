@@ -19,20 +19,72 @@ if hasattr(sys.stderr, 'reconfigure'):
         pass
 
 import json
-import sqlite3
+import os
+import psycopg2
+
+class _PostgresCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=None):
+        sql = query.replace("?", "%s")
+        return self._cursor.execute(sql, params) if params is not None else self._cursor.execute(sql)
+
+    def executemany(self, query, params):
+        sql = query.replace("?", "%s")
+        return self._cursor.executemany(sql, params)
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchmany(self, size=None):
+        return self._cursor.fetchmany(size)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+class _PostgresConnection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def cursor(self):
+        return _PostgresCursor(self._connection.cursor())
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+class _CompatSqliteModule:
+    OperationalError = psycopg2.OperationalError
+
+    @staticmethod
+    def connect(db_url):
+        conn_str = db_url or os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "postgresql://postgres:postgres@localhost:5432/show_answer"
+        connection = psycopg2.connect(conn_str)
+        connection.autocommit = False
+        return _PostgresConnection(connection)
+
+sqlite3 = _CompatSqliteModule()
 
 # Align working directory to CardGeneratorProject/ folder
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # Database configuration
-DB_FILE = "show_answer.db"
+DB_FILE = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "postgresql://postgres:postgres@localhost:5432/show_answer"
 
 def init_db():
-    """Initializes SQLite tables and migrates old roster.json data if exists."""
+    """Initializes PostgreSQL tables and migrates old roster.json data if exists."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # Create students table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS students (
             marker_id INTEGER PRIMARY KEY,
@@ -40,18 +92,10 @@ def init_db():
             name TEXT NOT NULL
         )
     """)
-    
-    # Alter students table if class and section columns are missing
-    try:
-        cursor.execute("ALTER TABLE students ADD COLUMN class TEXT")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE students ADD COLUMN section TEXT")
-    except sqlite3.OperationalError:
-        pass
-        
-    # Create responses table (keeps DB compatibility)
+
+    cursor.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS class TEXT")
+    cursor.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS section TEXT")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responses (
             student_id TEXT PRIMARY KEY,
@@ -59,7 +103,6 @@ def init_db():
         )
     """)
 
-    # Create users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
@@ -67,8 +110,7 @@ def init_db():
             role TEXT NOT NULL
         )
     """)
-    
-    # Create sessions table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
@@ -76,8 +118,7 @@ def init_db():
             role TEXT NOT NULL
         )
     """)
-    
-    # Create otps table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS otps (
             username TEXT PRIMARY KEY,
@@ -85,14 +126,12 @@ def init_db():
             expires REAL NOT NULL
         )
     """)
-    
-    # Seed default users
-    cursor.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin')")
-    cursor.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('teacher', 'teacher123', 'Teacher')")
-    
+
+    cursor.execute("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin') ON CONFLICT (username) DO NOTHING")
+    cursor.execute("INSERT INTO users (username, password, role) VALUES ('teacher', 'teacher123', 'Teacher') ON CONFLICT (username) DO NOTHING")
+
     conn.commit()
-    
-    # Auto-migration check: If students table is empty, and roster.json exists, migrate the data
+
     cursor.execute("SELECT COUNT(*) FROM students")
     count = cursor.fetchone()[0]
     if count == 0 and os.path.exists("roster.json"):
@@ -101,14 +140,14 @@ def init_db():
                 roster_data = json.load(f)
             for s in roster_data:
                 cursor.execute(
-                    "INSERT OR IGNORE INTO students (marker_id, student_id, name, class, section) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO students (marker_id, student_id, name, class, section) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (marker_id) DO NOTHING",
                     (s["marker_id"], s["student_id"], s["name"], s.get("class", ""), s.get("section", ""))
                 )
             conn.commit()
-            print(f"[OK] Auto-migrated {len(roster_data)} students from roster.json to SQLite database.")
+            print(f"[OK] Auto-migrated {len(roster_data)} students from roster.json to PostgreSQL database.")
         except Exception as e:
             print(f"Failed to auto-migrate roster.json: {e}")
-            
+
     conn.close()
 
 # Run database setup
@@ -124,6 +163,23 @@ def get_local_ip():
         return ip
     except Exception:
         return "127.0.0.1"
+
+
+def save_class_list(cursor, data):
+    cursor.execute("DELETE FROM students")
+    for s in data:
+        cursor.execute(
+            """
+            INSERT INTO students (marker_id, student_id, name, class, section)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (marker_id) DO UPDATE SET
+                student_id = EXCLUDED.student_id,
+                name = EXCLUDED.name,
+                class = EXCLUDED.class,
+                section = EXCLUDED.section
+            """,
+            (s.get("marker_id", 0), s.get("student_id", ""), s.get("name", ""), s.get("class", ""), s.get("section", ""))
+        )
 
 # Custom Threaded HTTP Server to handle concurrent connections smoothly
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
@@ -182,7 +238,7 @@ class ClassroomHubHandler(http.server.SimpleHTTPRequestHandler):
             if token:
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
-                cursor.execute("SELECT username, role FROM sessions WHERE token = ?", (token,))
+                cursor.execute("SELECT username, role FROM sessions WHERE token = %s", (token,))
                 row = cursor.fetchone()
                 conn.close()
                 if row:
@@ -241,14 +297,21 @@ class ClassroomHubHandler(http.server.SimpleHTTPRequestHandler):
 
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
-                cursor.execute("SELECT role FROM users WHERE username = ? AND password = ?", (username, password))
+                cursor.execute("SELECT role FROM users WHERE username = %s AND password = %s", (username, password))
                 row = cursor.fetchone()
                 if row:
                     import random
                     # Generate 6-digit OTP
                     otp = f"{random.randint(100000, 999999)}"
                     expires = time.time() + 300.0 # 5 minutes expiry
-                    cursor.execute("INSERT OR REPLACE INTO otps (username, otp, expires) VALUES (?, ?, ?)", (username, otp, expires))
+                    cursor.execute(
+                        """
+                        INSERT INTO otps (username, otp, expires)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (username) DO UPDATE SET otp = EXCLUDED.otp, expires = EXCLUDED.expires
+                        """,
+                        (username, otp, expires)
+                    )
                     conn.commit()
                     
                     print("\n" + "=" * 50)
@@ -279,18 +342,18 @@ class ClassroomHubHandler(http.server.SimpleHTTPRequestHandler):
 
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
-                cursor.execute("SELECT otp, expires FROM otps WHERE username = ?", (username,))
+                cursor.execute("SELECT otp, expires FROM otps WHERE username = %s", (username,))
                 row = cursor.fetchone()
                 if row and row[0] == otp and time.time() <= row[1]:
                     # OTP is valid, generate session token
                     import uuid
                     token = str(uuid.uuid4())
                     
-                    cursor.execute("SELECT role FROM users WHERE username = ?", (username,))
+                    cursor.execute("SELECT role FROM users WHERE username = %s", (username,))
                     role = cursor.fetchone()[0]
                     
-                    cursor.execute("INSERT INTO sessions (token, username, role) VALUES (?, ?, ?)", (token, username, role))
-                    cursor.execute("DELETE FROM otps WHERE username = ?", (username,))
+                    cursor.execute("INSERT INTO sessions (token, username, role) VALUES (%s, %s, %s)", (token, username, role))
+                    cursor.execute("DELETE FROM otps WHERE username = %s", (username,))
                     conn.commit()
                     
                     self.wfile.write(json.dumps({"status": "success", "token": token, "role": role}).encode('utf-8'))
@@ -309,12 +372,7 @@ class ClassroomHubHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(post_data.decode('utf-8'))
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM students")
-                for s in data:
-                    cursor.execute(
-                        "INSERT OR REPLACE INTO students (marker_id, student_id, name, class, section) VALUES (?, ?, ?, ?, ?)",
-                        (s["marker_id"], s["student_id"], s["name"], s.get("class", ""), s.get("section", ""))
-                    )
+                save_class_list(cursor, data)
                 conn.commit()
                 conn.close()
             except Exception as e:

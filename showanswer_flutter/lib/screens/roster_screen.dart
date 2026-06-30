@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RosterScreen extends StatefulWidget {
@@ -24,17 +25,52 @@ class _RosterScreenState extends State<RosterScreen> {
     _loadRoster();
   }
 
+  Future<void> _loadServerRoster() async {
+    final prefs = await SharedPreferences.getInstance();
+    final serverIp = prefs.getString('server_ip');
+    if (serverIp == null || serverIp.isEmpty) return;
+
+    try {
+      final uri = Uri.parse('http://$serverIp:8000/api/class');
+      final response = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final roster = decoded is List
+            ? decoded
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+            : <Map<String, dynamic>>[];
+
+        await prefs.setString('local_roster', json.encode(roster));
+        if (mounted) {
+          setState(() {
+            _roster = roster;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+    } catch (_) {
+      // Fall back to the cached roster if the server cannot be reached.
+    }
+  }
+
   Future<void> _loadRoster() async {
     final prefs = await SharedPreferences.getInstance();
+    await _loadServerRoster();
+
     final String? rosterJson = prefs.getString('local_roster');
     if (rosterJson != null) {
       try {
         final decoded = json.decode(rosterJson);
         if (decoded is List) {
-          setState(() {
-            _roster = decoded.map((v) => Map<String, dynamic>.from(v)).toList();
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _roster = decoded.map((v) => Map<String, dynamic>.from(v)).toList();
+              _isLoading = false;
+            });
+          }
         } else if (decoded is Map) {
           // Migrate old Map<String, String> format to List
           final List<Map<String, dynamic>> migrated = [];
@@ -48,23 +84,29 @@ class _RosterScreenState extends State<RosterScreen> {
               "section": "A"
             });
           });
-          setState(() {
-            _roster = migrated;
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _roster = migrated;
+              _isLoading = false;
+            });
+          }
           await _saveRoster();
         }
       } catch (_) {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     } else {
       _roster = [];
       await _saveRoster();
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

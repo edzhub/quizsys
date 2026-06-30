@@ -1,4 +1,4 @@
-const CACHE_NAME = 'showanswer-hub-cache-v1';
+const CACHE_NAME = 'showanswer-hub-cache-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -27,12 +27,13 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.url.includes('/api/')) {
-    e.respondWith(fetch(e.request));
-  } else {
-    e.respondWith(
-      fetch(e.request).catch(() => {
-        return caches.match(e.request);
-      })
-    );
+    e.respondWith(fetch(e.request, { cache: 'no-store' }));
+    return;
   }
+
+  e.respondWith(
+    fetch(e.request, { cache: 'no-store' }).catch(() => {
+      return caches.match(e.request);
+    })
+  );
 });

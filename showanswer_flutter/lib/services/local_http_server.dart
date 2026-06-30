@@ -80,7 +80,16 @@ class LocalHttpServer {
     }
 
     // --- API ENDPOINTS ROUTING ---
+    final bodyBytes = await request.fold<List<int>>([], (prev, element) => prev..addAll(element));
+
     final prefs = await SharedPreferences.getInstance();
+    final String? serverIp = prefs.getString('server_ip');
+    if (serverIp != null && serverIp.isNotEmpty) {
+      final success = await _proxyRequest(request, serverIp, localPort, bodyBytes);
+      if (success) {
+        return;
+      }
+    }
 
     // Roster API (GET)
     if (path == '/api/class' && request.method == 'GET') {
@@ -91,7 +100,7 @@ class LocalHttpServer {
 
     // Roster API (POST - for Admin Classroom Hub client page to add/sync students)
     if (path == '/api/class' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final rosterList = await _getMergedRoster(prefs);
 
       final String? sid = data['student_id']?.toString().trim();
@@ -146,7 +155,7 @@ class LocalHttpServer {
 
     // Save/Merge Card Responses (POST)
     if (path == '/api/responses' && request.method == 'POST') {
-      final data = await _parseBody(request);
+      final data = _parseBody(bodyBytes);
       if (data is Map) {
         data.forEach((k, v) {
           activeResponses[k.toString()] = v.toString();
@@ -180,7 +189,7 @@ class LocalHttpServer {
 
     // Upload Quizzes (POST)
     if (path == '/api/quiz/upload_multiple' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final List<dynamic> quizzes = data['quizzes'] ?? [];
       
       final Map<String, dynamic> existingQuizzes = {};
@@ -219,7 +228,7 @@ class LocalHttpServer {
 
     // Setup New Quiz (POST)
     if (path == '/api/quiz/setup' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final List<dynamic> questions = data['questions'] ?? [];
       
       activeResponses.clear();
@@ -232,7 +241,7 @@ class LocalHttpServer {
 
     // Activate a Quiz (POST)
     if (path == '/api/quiz/activate' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final String? qId = data['quiz_id']?.toString();
       
       activeResponses.clear();
@@ -258,7 +267,7 @@ class LocalHttpServer {
 
     // Delete a Quiz (POST)
     if (path == '/api/quiz/delete' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final String? qId = data['quiz_id']?.toString();
       if (qId != null) {
         final String? quizzesJson = prefs.getString('local_quizzes');
@@ -276,7 +285,7 @@ class LocalHttpServer {
 
     // Submit Response for a Question Index (POST)
     if (path == '/api/quiz/response' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final int? qIndex = data['q_index'] != null ? int.tryParse(data['q_index'].toString()) : null;
       final Map<String, dynamic> responses = data['responses'] ?? {};
 
@@ -353,7 +362,7 @@ class LocalHttpServer {
 
     // Authentic Credentials Check Mock (POST)
     if (path == '/api/auth/login' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final username = data['username']?.toString().toLowerCase().trim() ?? '';
       final password = data['password']?.toString() ?? '';
 
@@ -375,7 +384,7 @@ class LocalHttpServer {
 
     // Authentic OTP Verification Mock (POST)
     if (path == '/api/auth/verify_otp' && request.method == 'POST') {
-      final Map<String, dynamic> data = await _parseBody(request) ?? {};
+      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
       final username = data['username']?.toString().toLowerCase().trim() ?? '';
       final otp = data['otp']?.toString().trim() ?? '';
 
@@ -572,10 +581,80 @@ class LocalHttpServer {
     print("[Server] Successfully graded and logged completed AR Quiz results.");
   }
 
-  Future<dynamic> _parseBody(HttpRequest request) async {
+  Future<bool> _proxyRequest(HttpRequest clientRequest, String serverIp, int port, List<int> bodyBytes) async {
+    final client = HttpClient();
+    client.connectionTimeout = const Duration(seconds: 6);
+    
     try {
-      final body = await utf8.decoder.bind(request).join();
-      if (body.isEmpty) return null;
+      final pathWithQuery = clientRequest.uri.path + (clientRequest.uri.hasQuery ? '?${clientRequest.uri.query}' : '');
+      final targetUri = Uri.parse('http://$serverIp:$port$pathWithQuery');
+      final proxyRequest = await client.openUrl(clientRequest.method, targetUri);
+      
+      // Copy headers from client request to proxy request
+      clientRequest.headers.forEach((name, values) {
+        if (name != 'host' && name != 'content-length') {
+          for (var value in values) {
+            proxyRequest.headers.add(name, value);
+          }
+        }
+      });
+      
+      // Copy body from client request to proxy request
+      if (bodyBytes.isNotEmpty) {
+        proxyRequest.add(bodyBytes);
+      }
+      
+      final proxyResponse = await proxyRequest.close().timeout(const Duration(seconds: 10));
+      
+      // Copy status code and headers from proxy response to client response
+      clientRequest.response.statusCode = proxyResponse.statusCode;
+      
+      // Clear default headers
+      clientRequest.response.headers.clear();
+      clientRequest.response.headers.add('Access-Control-Allow-Origin', '*');
+      clientRequest.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      clientRequest.response.headers.add('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+      
+      proxyResponse.headers.forEach((name, values) {
+        if (name != 'access-control-allow-origin' && name != 'access-control-allow-methods' && name != 'access-control-allow-headers') {
+          for (var val in values) {
+            clientRequest.response.headers.add(name, val);
+          }
+        }
+      });
+      
+      // Read response body bytes
+      final responseBytes = await proxyResponse.fold<List<int>>([], (prev, element) => prev..addAll(element));
+      
+      // Cache responses locally for offline fallback
+      if (proxyResponse.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        final path = clientRequest.uri.path;
+        
+        if (path == '/api/class' && clientRequest.method == 'GET') {
+          await prefs.setString('local_roster', utf8.decode(responseBytes));
+        } else if (path == '/api/quiz/active' && clientRequest.method == 'GET') {
+          await prefs.setString('local_active_quiz', utf8.decode(responseBytes));
+        } else if (path == '/api/quiz/list' && clientRequest.method == 'GET') {
+          await prefs.setString('local_quizzes', utf8.decode(responseBytes));
+        }
+      }
+      
+      clientRequest.response.add(responseBytes);
+      await clientRequest.response.close();
+      return true;
+    } catch (e) {
+      print("[LocalServer] Proxy request to $serverIp failed: $e");
+      return false;
+    } finally {
+      client.close();
+    }
+  }
+
+  dynamic _parseBody(List<int> bodyBytes) {
+    try {
+      if (bodyBytes.isEmpty) return null;
+      final body = utf8.decode(bodyBytes);
       return json.decode(body);
     } catch (e) {
       print("[Server] Error decoding request body: $e");

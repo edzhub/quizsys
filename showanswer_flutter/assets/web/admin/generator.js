@@ -7,49 +7,93 @@
 // ─────────────────────────────────────────────────────────────────────────────
 let classList = [];
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  INITIALIZATION
-// ─────────────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  initCardGenerator();
-  establishHandshake();
-});
+function normalizeClassList(list) {
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      marker_id: Number(item.marker_id ?? 0),
+      student_id: String(item.student_id ?? ''),
+      name: String(item.name ?? ''),
+      class: item.class ?? '',
+      section: item.section ?? ''
+    }))
+    .filter(item => item.student_id || item.name);
+}
+
+function applyClassList(list) {
+  classList = normalizeClassList(list);
+  onClassUpdated();
+}
+
+function loadClassListFromStorage() {
+  try {
+    const saved = localStorage.getItem('showanswer_class_list');
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    return normalizeClassList(parsed);
+  } catch (err) {
+    console.warn('Could not restore class list from local storage:', err);
+    return [];
+  }
+}
+
+function startGenerator() {
+  try {
+    initCardGenerator();
+  } catch (e) {
+    console.error("Error initializing card generator:", e);
+  }
+  try {
+    establishHandshake();
+  } catch (e) {
+    console.error("Error establishing handshake:", e);
+  }
+}
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', startGenerator);
+} else {
+  startGenerator();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONNECTION HANDSHAKE
 // ─────────────────────────────────────────────────────────────────────────────
 function establishHandshake() {
   const syncStatus = document.getElementById('sync-status');
+  syncStatus.textContent = '🔄 Loading class list...';
 
-  // Always attempt to pull the current class list from the network API first
-  fetch('/api/class')
+  // 1. Immediately load from localStorage (set by class_hub.js when navigating here)
+  const cachedClass = loadClassListFromStorage();
+  if (cachedClass.length > 0) {
+    applyClassList(cachedClass);
+  }
+
+  // 2. Also fetch from server to get latest data (and update cache)
+  fetch('/api/class', { cache: 'no-store' })
     .then(res => res.json())
     .then(data => {
-      if (data && data.length > 0) {
-        classList = data;
-        onClassUpdated();
+      if (Array.isArray(data) && data.length > 0) {
+        // Server has data — use it and update localStorage
+        localStorage.setItem('showanswer_class_list', JSON.stringify(data));
+        applyClassList(data);
+      } else if (cachedClass.length > 0) {
+        // Server empty but we have cache — keep it
+        applyClassList(cachedClass);
       }
     })
-    .catch(err => console.warn("Could not retrieve class list from network API:", err));
-  
-  if (window.opener) {
-    // Send handshake
-    window.opener.postMessage({ type: 'CONNECT', role: 'generator' }, '*');
-    
-    // Listen for incoming messages from Classroom Hub
-    window.addEventListener('message', (event) => {
-      const msg = event.data;
-      if (!msg || typeof msg !== 'object') return;
-
-      if (msg.type === 'UPDATE_CLASS') {
-        classList = msg.classList || [];
-        onClassUpdated();
-      }
+    .catch(err => {
+      console.warn('Could not retrieve class list from network API:', err);
+      // Already applied cache above — nothing more to do
     });
-  } else {
-    syncStatus.textContent = '⚠️ Standalone Mode (No Classroom Hub)';
-    syncStatus.className = 'sync-indicator unsynced';
-  }
+
+  // 3. Listen for localStorage changes from other tabs
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'showanswer_class_list') {
+      applyClassList(loadClassListFromStorage());
+    }
+  });
 }
 
 function onClassUpdated() {
@@ -88,12 +132,6 @@ function onClassUpdated() {
 //  PREVIEW & PRINT MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 function initCardGenerator() {
-  // Set the back link dynamically
-  const backLink = document.getElementById('back-to-hub-link');
-  if (backLink) {
-    backLink.href = `/`;
-  }
-
   const select = document.getElementById('card-preview-select');
   select.addEventListener('change', () => {
     const markerId = select.value;

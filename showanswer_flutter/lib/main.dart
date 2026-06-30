@@ -23,6 +23,13 @@ void main() async {
   
   // Start Dart loopback server to serve web assets and mock APIs offline
   await _localHttpServer.start();
+
+  // Enable WebView debugging for inspection
+  try {
+    if (Platform.isAndroid) {
+      AndroidWebViewController.enableDebugging(true);
+    }
+  } catch (_) {}
   
   runApp(const ShowAnswerApp());
 }
@@ -244,7 +251,7 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
   }
 
   void _initWebViewController() {
-    _controller = WebViewController.fromPlatformCreationParams(
+    final controller = WebViewController.fromPlatformCreationParams(
       const PlatformWebViewControllerCreationParams(),
     )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -268,7 +275,11 @@ class _WebLoginScreenState extends State<WebLoginScreen> {
         ),
       );
 
-    _controller!.loadRequest(Uri.parse('http://127.0.0.1:8000/login.html'));
+    controller.loadRequest(Uri.parse('http://127.0.0.1:8000/login.html'));
+    
+    setState(() {
+      _controller = controller;
+    });
   }
 
   Future<void> _checkWebSession() async {

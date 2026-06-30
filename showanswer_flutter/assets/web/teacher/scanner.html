@@ -1,5 +1,5 @@
-<!DOCTYPE html>
-<html lang="en" class="lock-scroll">
+﻿<!DOCTYPE html>
+<html lang="en">
 <head>
   <script>
     (function() {
@@ -21,7 +21,7 @@
     })();
   </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Live Scanner</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -35,7 +35,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body class="lock-scroll">
+<body>
 
   <!-- Screen Content -->
   <div id="app-container" class="screen-only">
@@ -53,6 +53,13 @@
         <button onclick="localStorage.clear(); window.location.href='login.html';" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-weight:600; border-radius:6px; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);">Logout ➔</button>
       </div>
     </header>
+
+    <!-- Navigation Tabs -->
+    <div class="tab-nav">
+      <a href="index.html" class="tab-btn" style="text-decoration: none;">🏠 Switch Module</a>
+      <a href="question.html" class="tab-btn" style="text-decoration: none;">📝 Setup AR Quiz</a>
+      <a href="scanner.html" class="tab-btn active" style="text-decoration: none;">📹 Scan AR Cards</a>
+    </div>
 
     <!-- Navigation link back to Question Setup -->
     <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">

@@ -20,10 +20,63 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 import re
 import json
-import sqlite3
+import os
 import base64
 import numpy as np
 import cv2
+import psycopg2
+
+class _PostgresCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=None):
+        sql = query.replace("?", "%s")
+        return self._cursor.execute(sql, params) if params is not None else self._cursor.execute(sql)
+
+    def executemany(self, query, params):
+        sql = query.replace("?", "%s")
+        return self._cursor.executemany(sql, params)
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchmany(self, size=None):
+        return self._cursor.fetchmany(size)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+class _PostgresConnection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def cursor(self):
+        return _PostgresCursor(self._connection.cursor())
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+class _CompatSqliteModule:
+    OperationalError = psycopg2.OperationalError
+
+    @staticmethod
+    def connect(db_url):
+        conn_str = db_url or os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "postgresql://postgres:postgres@localhost:5432/show_answer"
+        connection = psycopg2.connect(conn_str)
+        connection.autocommit = False
+        return _PostgresConnection(connection)
+
+sqlite3 = _CompatSqliteModule()
 # Appending RapidOCR directory to path
 RAPIDOCR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RapidOCR", "python")
 if RAPIDOCR_PATH not in sys.path:
@@ -109,16 +162,10 @@ except Exception as e:
 # Align working directory to QuestionScannerProject/ folder
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# Database configuration: check side-by-side CardGeneratorProject first
-PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SHARED_DB = os.path.join(PARENT_DIR, "CardGeneratorProject", "show_answer.db")
-
-if os.path.exists(SHARED_DB):
-    DB_FILE = SHARED_DB
-    print(f"[Database] Using shared database at: {DB_FILE}")
-else:
-    DB_FILE = "show_answer.db"
-    print(f"[Database] Shared database not found. Using local database: {DB_FILE}")
+# Database configuration: use PostgreSQL via DATABASE_URL / POSTGRES_URL
+DEFAULT_DB_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "postgresql://postgres:postgres@localhost:5432/show_answer"
+DB_FILE = DEFAULT_DB_URL
+print(f"[Database] Using PostgreSQL connection string: {DB_FILE}")
 
 # Active question memory store (volatile - reset on server restart)
 active_question = {
@@ -131,11 +178,10 @@ active_question = {
 }
 
 def init_db():
-    """Initializes SQLite tables in whatever database file we are using."""
+    """Initializes PostgreSQL tables and seed users."""
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # Create students table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS students (
             marker_id INTEGER PRIMARY KEY,
@@ -143,26 +189,17 @@ def init_db():
             name TEXT NOT NULL
         )
     """)
-    
-    # Alter students table if class and section columns are missing
-    try:
-        cursor.execute("ALTER TABLE students ADD COLUMN class TEXT")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        cursor.execute("ALTER TABLE students ADD COLUMN section TEXT")
-    except sqlite3.OperationalError:
-        pass
-    
-    # Create responses table
+
+    cursor.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS class TEXT")
+    cursor.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS section TEXT")
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responses (
             student_id TEXT PRIMARY KEY,
             answer TEXT NOT NULL
         )
     """)
-    
-    # Create quiz_questions table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quiz_questions (
             quiz_id TEXT,
@@ -176,8 +213,7 @@ def init_db():
             PRIMARY KEY (quiz_id, q_index)
         )
     """)
-    
-    # Create quiz_responses table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS quiz_responses (
             quiz_id TEXT,
@@ -188,7 +224,6 @@ def init_db():
         )
     """)
 
-    # Create users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
@@ -196,8 +231,7 @@ def init_db():
             role TEXT NOT NULL
         )
     """)
-    
-    # Create sessions table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
@@ -205,8 +239,7 @@ def init_db():
             role TEXT NOT NULL
         )
     """)
-    
-    # Create otps table
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS otps (
             username TEXT PRIMARY KEY,
@@ -214,11 +247,10 @@ def init_db():
             expires REAL NOT NULL
         )
     """)
-    
-    # Seed default users
-    cursor.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin')")
-    cursor.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('teacher', 'teacher123', 'Teacher')")
-    
+
+    cursor.execute("INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin') ON CONFLICT (username) DO NOTHING")
+    cursor.execute("INSERT INTO users (username, password, role) VALUES ('teacher', 'teacher123', 'Teacher') ON CONFLICT (username) DO NOTHING")
+
     conn.commit()
     conn.close()
 
@@ -1120,7 +1152,7 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                     # Generate 6-digit OTP
                     otp = f"{random.randint(100000, 999999)}"
                     expires = time.time() + 300.0 # 5 minutes expiry
-                    cursor.execute("INSERT OR REPLACE INTO otps (username, otp, expires) VALUES (?, ?, ?)", (username, otp, expires))
+                    cursor.execute("INSERT INTO otps (username, otp, expires) VALUES (?, ?, ?) ON CONFLICT (username) DO UPDATE SET otp = EXCLUDED.otp, expires = EXCLUDED.expires", (username, otp, expires))
                     conn.commit()
                     
                     print("\n" + "=" * 50)
@@ -1279,7 +1311,7 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                 cursor = conn.cursor()
                 for sid, ans in data.items():
                     cursor.execute(
-                        "INSERT OR REPLACE INTO responses (student_id, answer) VALUES (?, ?)",
+                        "INSERT INTO responses (student_id, answer) VALUES (?, ?) ON CONFLICT (student_id) DO UPDATE SET answer = EXCLUDED.answer",
                         (sid, ans)
                     )
                 conn.commit()
@@ -1361,8 +1393,9 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                 
                 for sid, ans in responses_payload.items():
                     cursor.execute("""
-                        INSERT OR REPLACE INTO quiz_responses (quiz_id, q_index, student_id, answer)
+                        INSERT INTO quiz_responses (quiz_id, q_index, student_id, answer)
                         VALUES ('active', ?, ?, ?)
+                        ON CONFLICT (quiz_id, q_index, student_id) DO UPDATE SET answer = EXCLUDED.answer
                     """, (q_idx, sid, ans))
                 
                 conn.commit()
@@ -1401,8 +1434,15 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                 if parsed_qs:
                     for idx, q in enumerate(parsed_qs):
                         cursor.execute("""
-                            INSERT OR REPLACE INTO quiz_questions (quiz_id, q_index, question, option_a, option_b, option_c, option_d, correct_answer)
+                            INSERT INTO quiz_questions (quiz_id, q_index, question, option_a, option_b, option_c, option_d, correct_answer)
                             VALUES ('active', ?, ?, ?, ?, ?, ?, COALESCE((SELECT correct_answer FROM quiz_questions WHERE quiz_id = 'active' AND q_index = ?), ''))
+                            ON CONFLICT (quiz_id, q_index) DO UPDATE SET 
+                                question = EXCLUDED.question, 
+                                option_a = EXCLUDED.option_a, 
+                                option_b = EXCLUDED.option_b, 
+                                option_c = EXCLUDED.option_c, 
+                                option_d = EXCLUDED.option_d, 
+                                correct_answer = EXCLUDED.correct_answer
                         """, (idx, q.get("question", ""), q.get("optionA", ""), q.get("optionB", ""), q.get("optionC", ""), q.get("optionD", ""), idx))
                 
                 # 2. Database check / update / insert for Student Name, class, and section
@@ -1443,8 +1483,9 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                 for q_idx in range(len(answers)):
                     if q_idx < len(answers) and answers[q_idx] != "?":
                         cursor.execute("""
-                            INSERT OR REPLACE INTO quiz_responses (quiz_id, q_index, student_id, answer)
+                            INSERT INTO quiz_responses (quiz_id, q_index, student_id, answer)
                             VALUES ('active', ?, ?, ?)
+                            ON CONFLICT (quiz_id, q_index, student_id) DO UPDATE SET answer = EXCLUDED.answer
                         """, (q_idx, roll_no, answers[q_idx]))
                 conn.commit()
                 conn.close()

@@ -2,6 +2,23 @@
 <html lang="en">
 <head>
   <script>
+    // Global error listener for mobile debugging
+    window.addEventListener('error', function(e) {
+      const errDiv = document.createElement('div');
+      errDiv.style.position = 'fixed';
+      errDiv.style.top = '0';
+      errDiv.style.left = '0';
+      errDiv.style.width = '100%';
+      errDiv.style.background = '#ef4444';
+      errDiv.style.color = '#ffffff';
+      errDiv.style.padding = '12px';
+      errDiv.style.zIndex = '999999';
+      errDiv.style.fontSize = '12px';
+      errDiv.style.fontFamily = 'monospace';
+      errDiv.textContent = 'JS Error: ' + e.message + ' (' + e.filename + ':' + e.lineno + ')';
+      document.body.appendChild(errDiv);
+    });
+
     (function() {
       const token = localStorage.getItem('showanswer_session_token');
       const role = localStorage.getItem('showanswer_session_role');
@@ -21,7 +38,7 @@
     })();
   </script>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Classroom Hub</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -64,14 +81,14 @@
 
     <!-- Micro-Frontend Launcher Grid -->
     <div class="portal-links-container">
-      <a href="/generator.html" target="_blank" id="open-generator-link" class="portal-card">
+      <a href="generator.html" id="open-generator-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
         <div class="portal-info">
           <span class="portal-title">🖨️ Card Generator <span class="badge">Open Generator</span></span>
           <span class="portal-desc">Preview and print A4-optimized ArUco polling cards</span>
         </div>
         <div id="status-generator" class="portal-status-badge disconnected">Standalone</div>
       </a>
-      <a href="/ocr_sheet.html" target="_blank" id="open-ocr-sheet-link" class="portal-card">
+      <a href="ocr_sheet.html" id="open-ocr-sheet-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
         <div class="portal-info">
           <span class="portal-title">📝 Print OCR Sheets <span class="badge">Open PDF Sheet</span></span>
           <span class="portal-desc">Preview and print handwritten answer sheets for scanning</span>

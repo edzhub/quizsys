@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Portal Login</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -222,28 +222,23 @@
       animation: fadeIn 0.3s ease-out forwards;
     }
 
-    .otp-inputs {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      margin: 24px 0;
-    }
-
-    .otp-box {
-      width: 48px;
-      height: 48px;
+    .otp-single-input {
+      width: 100%;
+      padding: 16px;
       text-align: center;
-      font-size: 1.4rem;
+      font-size: 2rem;
       font-weight: 700;
+      letter-spacing: 0.5em;
       background-color: rgba(241, 245, 249, 0.9);
-      border: 1px solid var(--glass-border);
+      border: 2px solid var(--glass-border);
       color: var(--text-main);
-      border-radius: 10px;
+      border-radius: 12px;
       outline: none;
       transition: all 0.2s ease;
+      margin: 20px 0;
     }
 
-    .otp-box:focus {
+    .otp-single-input:focus {
       border-color: var(--success);
       box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
       background-color: #ffffff;
@@ -330,7 +325,7 @@
           <label for="username">Username</label>
           <div class="input-wrapper">
             <span>👤</span>
-            <input type="text" id="username" placeholder="e.g. admin" required autocomplete="off" autocapitalize="none" autocorrect="off">
+            <input type="text" id="username" placeholder="e.g. admin" required autocomplete="off">
           </div>
         </div>
 
@@ -351,7 +346,7 @@
       <div class="logo-section">
         <span class="logo-icon">🔐</span>
         <h1>Enter Verification Code</h1>
-        <p>A simulated MFA code was generated for security validation.</p>
+        <p>A simulated MFA code was generated. Check the server terminal.</p>
       </div>
 
       <div class="error-banner" id="otp-error-banner">Invalid or expired OTP. Please try again.</div>
@@ -359,10 +354,8 @@
       <form id="otp-form">
         <div class="form-group">
           <label style="text-align: center;">MFA One-Time Passcode</label>
-          <div class="input-wrapper" style="margin: 20px 0;">
-            <span style="left: 14px;">🔑</span>
-            <input type="text" id="otp-input" placeholder="Enter 6-digit passcode" pattern="[0-9]{6}" inputmode="numeric" maxlength="6" style="padding-left: 42px; text-align: center; letter-spacing: 6px; font-size: 1.3rem; font-weight: 700;" required autocomplete="off">
-          </div>
+          <input type="text" inputmode="numeric" maxlength="6" class="otp-single-input" id="otp-input"
+            placeholder="_ _ _ _ _ _" pattern="[0-9]{6}" required autocomplete="one-time-code">
         </div>
 
         <button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">Verify & Log In ✓</button>

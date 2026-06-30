@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import '../services/ocr_service.dart';
 
 class CameraScannerScreen extends StatefulWidget {
@@ -46,6 +47,7 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
     WidgetsBinding.instance.addObserver(this);
     _requestPermissionAndInitCamera();
     _loadServerIp();
+    _refreshRosterFromServer();
   }
 
   Future<void> _loadServerIp() async {
@@ -53,6 +55,33 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
     setState(() {
       _serverIp = prefs.getString('server_ip');
     });
+  }
+
+  Future<void> _refreshRosterFromServer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final serverIp = prefs.getString('server_ip');
+    if (serverIp == null || serverIp.isEmpty) return;
+
+    try {
+      final uri = Uri.parse('http://$serverIp:8000/api/class');
+      final response = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        final roster = decoded is List
+            ? decoded
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+            : <Map<String, dynamic>>[];
+
+        await prefs.setString('local_roster', json.encode(roster));
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (_) {
+      // Fall back to the cached roster if the server cannot be reached.
+    }
   }
 
   void _showIpSettingsDialog() {
@@ -104,12 +133,15 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
                 setState(() {
                   _serverIp = ip;
                 });
+                
+                await _refreshRosterFromServer();
+                
                 if (mounted) {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       backgroundColor: const Color(0xFF10B981),
-                      content: Text('Server IP updated to $ip', style: const TextStyle(color: Colors.white)),
+                      content: Text('Server IP updated to $ip and class roster synced.', style: const TextStyle(color: Colors.white)),
                     ),
                   );
                 }

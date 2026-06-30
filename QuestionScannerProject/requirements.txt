@@ -1,6 +1,7 @@
 opencv-python
 numpy
 onnxruntime
+psycopg2-binary
 pyclipper
 shapely
 PyYAML

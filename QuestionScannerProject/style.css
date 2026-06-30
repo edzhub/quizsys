@@ -11,8 +11,8 @@
   --text-muted: #a1a1aa; /* Soft gray description */
   --border-color: rgba(255, 255, 255, 0.08); /* White opacity border */
 
-  --primary: #d4fc34; /* Neon lime */
-  --primary-hover: #c5f01e;
+  --primary: #fc4a44; /* Neon lime */
+  --primary-hover: #c5f013;
   --accent: #d4fc34; /* Neon lime */
   --accent-hover: #c5f01e;
   --danger: #ef4444;
@@ -95,7 +95,7 @@ body {
 .badge {
   font-size: 0.7rem;
   background-color: var(--text-main);
-  color: #ffffff;
+  color: #09090b;
   padding: 2px 10px;
   border-radius: 9999px;
   font-weight: 600;
@@ -1293,6 +1293,36 @@ tr:last-child td {
 }
 
 @media (max-width: 600px) {
+  /* Tab nav scrollable row */
+  .tab-nav {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    justify-content: flex-start !important;
+    padding: 6px 8px !important;
+    gap: 4px !important;
+  }
+
+  .tab-btn {
+    padding: 8px 14px !important;
+    font-size: 0.8rem !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  .portal-links-container {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
   html, body {
     margin: 0 !important;
     padding: 0 !important;

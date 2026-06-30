@@ -9,28 +9,30 @@ let classList = [];
 let generatorWindow = null;
 let scannerWindow = null;
 
-// Default Class List
-const DEFAULT_CLASS = [
-  { marker_id: 0, student_id: "220001", name: "Akshay Sharma" },
-  { marker_id: 1, student_id: "220002", name: "Priya Reddy" },
-  { marker_id: 2, student_id: "220003", name: "Rohan Mehta" },
-  { marker_id: 3, student_id: "220004", name: "Sneha Iyer" },
-  { marker_id: 4, student_id: "220005", name: "Karan Patel" },
-  { marker_id: 5, student_id: "220006", name: "Divya Nair" },
-  { marker_id: 6, student_id: "220007", name: "Arjun Verma" },
-  { marker_id: 7, student_id: "220008", name: "Pooja Krishnan" },
-  { marker_id: 8, student_id: "220009", name: "Rahul Gupta" },
-  { marker_id: 9, student_id: "220010", name: "Ananya Das" }
-];
+// No demo defaults — class list must come from CSV upload or server DB
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  INITIALIZATION
-// ─────────────────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  initClassList();
-  initCSVUpload();
-  initConnectionSync();
-});
+function startHub() {
+  try {
+    initClassList();
+  } catch (e) {
+    console.error("Error initializing class list:", e);
+  }
+  try {
+    initCSVUpload();
+  } catch (e) {
+    console.error("Error initializing CSV upload:", e);
+  }
+  try {
+    initConnectionSync();
+  } catch (e) {
+    console.error("Error initializing connection sync:", e);
+  }
+}
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', startHub);
+} else {
+  startHub();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CLASS LIST MANAGEMENT
@@ -48,33 +50,23 @@ function initClassList() {
         updateClassTable();
         broadcastClassList();
       } else {
-        // Fallback to local storage or defaults
+        // Fallback to local storage cache only
         const saved = localStorage.getItem('showanswer_class_list');
         if (saved) {
-          try {
-            classList = JSON.parse(saved);
-          } catch(e) {
-            classList = [...DEFAULT_CLASS];
-          }
+          try { classList = JSON.parse(saved); } catch(e) { classList = []; }
         } else {
-          classList = [...DEFAULT_CLASS];
+          classList = [];
         }
         updateClassTable();
-        // Upload initial class list to database
-        saveClassList();
       }
     })
     .catch(err => {
       console.warn("Class database API offline. Falling back to local storage:", err);
       const saved = localStorage.getItem('showanswer_class_list');
       if (saved) {
-        try {
-          classList = JSON.parse(saved);
-        } catch(e) {
-          classList = [...DEFAULT_CLASS];
-        }
+        try { classList = JSON.parse(saved); } catch(e) { classList = []; }
       } else {
-        classList = [...DEFAULT_CLASS];
+        classList = [];
       }
       updateClassTable();
     });
@@ -278,45 +270,29 @@ function parseClassCSV(csvText) {
 //  CROSS-ORIGIN WINDOW SYNCHRONIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 function initConnectionSync() {
-  const origin = window.location.origin;
-  
-  // Set the portal card links dynamically to match the current origin
-  document.getElementById('open-generator-link').href = `/generator.html`;
+  // Set the portal card links
+  document.getElementById('open-generator-link').href = 'generator.html';
+  document.getElementById('open-ocr-sheet-link').href = 'ocr_sheet.html';
 
-  // Catch click triggers to track reference handles
+  // Generate Codes button → navigate directly to generator page
+  document.getElementById('generate-codes-btn').addEventListener('click', () => {
+    // Save class list to localStorage so generator can read it immediately
+    localStorage.setItem('showanswer_class_list', JSON.stringify(classList));
+    // Navigate in same window (window.open is blocked in Android WebView)
+    window.location.href = 'generator.html';
+  });
+
+  // Portal card click → same-window navigation
   document.getElementById('open-generator-link').addEventListener('click', (e) => {
     e.preventDefault();
-    generatorWindow = window.open(`/generator.html`, 'ShowAnswerGenerator');
+    localStorage.setItem('showanswer_class_list', JSON.stringify(classList));
+    window.location.href = 'generator.html';
   });
 
-  document.getElementById('generate-codes-btn').addEventListener('click', () => {
-    generatorWindow = window.open(`/generator.html`, 'ShowAnswerGenerator');
-  });
-
-  // Periodically check if windows were closed by the user
-  setInterval(() => {
-    if (generatorWindow && generatorWindow.closed) {
-      generatorWindow = null;
-      updateStatusUI('generator', false);
-    }
-  }, 1000);
-
-  // Message Handler for incoming connections
-  window.addEventListener('message', (event) => {
-    const msg = event.data;
-    if (!msg || typeof msg !== 'object') return;
-
-    if (msg.type === 'CONNECT') {
-      if (msg.role === 'generator') {
-        generatorWindow = event.source;
-        updateStatusUI('generator', true);
-        sendClassList(generatorWindow, origin);
-      }
-    } else if (msg.type === 'REQUEST_CLASS') {
-      if (event.source === generatorWindow) {
-        sendClassList(generatorWindow, origin);
-      }
-    }
+  // OCR sheet link click → same-window navigation
+  document.getElementById('open-ocr-sheet-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    window.location.href = 'ocr_sheet.html';
   });
 }
 

@@ -408,7 +408,7 @@
   </div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', async () => {
+    async function startOcrSheet() {
       // 1. Fetch active quiz questions
       try {
         let basePath = "";
@@ -516,7 +516,13 @@
           clearBtn.style.display = 'none';
         });
       }
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startOcrSheet);
+    } else {
+      startOcrSheet();
+    }
   </script>
 
   <!-- Navigation Tabs -->

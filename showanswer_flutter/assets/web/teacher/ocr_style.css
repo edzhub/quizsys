@@ -376,19 +376,3 @@ select {
   font-size: 1rem;
   color: var(--text-main);
 }
-
-/* Mobile adjustments for the camera view */
-@media (max-width: 600px) {
-  .camera-container {
-    aspect-ratio: auto !important;
-    height: 55vh !important;
-    max-width: 100% !important;
-    border-radius: 16px !important;
-    margin-bottom: 12px !important;
-  }
-  .controls-panel {
-    padding: 16px !important;
-    border-radius: 16px !important;
-    margin-bottom: 16px !important;
-  }
-}

@@ -12,7 +12,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const otpErrorBanner = document.getElementById('otp-error-banner');
   const btnBack = document.getElementById('btn-back');
   
-  // OTP auto-focus and styling is handled by native browser/CSS for single input box
+  // Single OTP input - auto-focus on show
 
   // Handle back button from OTP screen
   btnBack.addEventListener('click', () => {
@@ -43,9 +43,8 @@ window.addEventListener('DOMContentLoaded', () => {
         // Show OTP section
         credSection.style.display = 'none';
         otpSection.style.display = 'block';
-        const otpInput = document.getElementById('otp-input');
-        otpInput.value = '';
-        otpInput.focus();
+        document.getElementById('otp-input').value = '';
+        document.getElementById('otp-input').focus();
         
         // Show toast with OTP for easy user input
         showToast(simulatedOtp);
@@ -66,10 +65,10 @@ window.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     otpErrorBanner.style.display = 'none';
 
-    // Read single input OTP value
+    // Read single OTP input
     const otp = document.getElementById('otp-input').value.trim();
     if (otp.length !== 6) {
-      otpErrorBanner.textContent = "Please enter all 6 digits.";
+      otpErrorBanner.textContent = "Please enter the full 6-digit code.";
       otpErrorBanner.style.display = 'block';
       return;
     }
@@ -99,9 +98,8 @@ window.addEventListener('DOMContentLoaded', () => {
       } else {
         otpErrorBanner.textContent = data.message || "Invalid or expired passcode.";
         otpErrorBanner.style.display = 'block';
-        const otpInput = document.getElementById('otp-input');
-        otpInput.value = '';
-        otpInput.focus();
+        document.getElementById('otp-input').value = '';
+        document.getElementById('otp-input').focus();
       }
     })
     .catch(err => {
