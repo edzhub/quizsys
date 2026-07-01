@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <script>
+    // Detect mobile WebView and add class to HTML tag for styling adjustments
+    if (navigator.userAgent.includes("ShowAnswerMobileWebView")) {
+      document.documentElement.classList.add('is-mobile-webview');
+    }
+
     // Global error listener for mobile debugging
     window.addEventListener('error', function(e) {
       const errDiv = document.createElement('div');
@@ -75,7 +80,7 @@
       <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
       <a href="ocr_sheet.html" class="tab-btn" style="text-decoration: none;">📄 OCR Templates</a>
       <a href="manage_teachers.html" class="tab-btn" style="text-decoration: none;">👩‍🏫 Manage Teachers</a>
-      <a href="#" onclick="const isUnified = window.location.pathname.startsWith('/admin/'); window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+      <a href="#" onclick="window.location.href = '/teacher/index.html';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
     </div>
 
 
@@ -96,10 +101,30 @@
         </div>
         <div id="status-ocr-sheet" class="portal-status-badge disconnected">Printable</div>
       </a>
+      <a href="manage_teachers.html" id="open-manage-teachers-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
+        <div class="portal-info">
+          <span class="portal-title">👩‍🏫 Manage Teachers <span class="badge">Admin Only</span></span>
+          <span class="portal-desc">Manage teacher logins and access control settings</span>
+        </div>
+        <div class="portal-status-badge disconnected">Control</div>
+      </a>
+      <a href="#" onclick="window.location.href = '/teacher/index.html';" id="open-teacher-portal-link" class="portal-card" style="cursor:pointer; text-decoration: none;">
+        <div class="portal-info">
+          <span class="portal-title">📹 Teacher Portal <span class="badge">Launch Portal</span></span>
+          <span class="portal-desc">Switch to the teacher dashboard and camera scanning portal</span>
+        </div>
+        <div class="portal-status-badge disconnected">Scanner</div>
+      </a>
     </div>
 
     <!-- Main Content Panels -->
     <main class="app-content">
+      <!-- Connection Status Banner -->
+      <div id="pc-connection-banner" class="connection-status-banner" style="display: none;">
+        <span class="status-dot"></span>
+        <span class="status-text">Checking connection to PC server...</span>
+      </div>
+      
       <div class="grid-2col">
         
         <!-- Class List Upload & Input Form -->

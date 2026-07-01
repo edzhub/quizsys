@@ -56,7 +56,7 @@ class _IpSetupScreenState extends State<IpSetupScreen> {
       formattedIp = formattedIp.substring(0, formattedIp.length - 1);
     }
 
-    final String targetUrl = 'http://$formattedIp:8002/api/server-info';
+    final String targetUrl = 'http://$formattedIp:8000/api/server-info';
 
     try {
       final response = await http.get(Uri.parse(targetUrl)).timeout(

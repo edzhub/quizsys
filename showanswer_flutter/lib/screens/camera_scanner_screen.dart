@@ -101,7 +101,7 @@ class CameraScannerScreenState extends State<CameraScannerScreen> with WidgetsBi
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Enter the IP address of the PC running the Python server (port 8002).',
+                'Enter the IP address of the PC running the Python server (port 8000).',
                 style: TextStyle(fontFamily: 'Outfit', color: Color(0xFFA1A1AA), fontSize: 13.0),
               ),
               const SizedBox(height: 16.0),

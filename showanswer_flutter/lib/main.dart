@@ -1,9 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'screens/camera_scanner_screen.dart';
 import 'screens/ar_polling_screen.dart';
@@ -11,6 +16,7 @@ import 'screens/roster_screen.dart';
 import 'screens/answer_key_screen.dart';
 import 'screens/grades_screen.dart';
 import 'services/local_http_server.dart';
+import 'services/pdf_generator.dart';
 
 // Declare loopback server globally
 final LocalHttpServer _localHttpServer = LocalHttpServer();
@@ -323,11 +329,63 @@ class AdminPortalScreen extends StatefulWidget {
 class _AdminPortalScreenState extends State<AdminPortalScreen> {
   WebViewController? _controller;
   bool _isLoading = true;
+  String _appBarTitle = 'Classroom Hub';
 
   @override
   void initState() {
     super.initState();
     _initWebViewController();
+  }
+
+  Future<void> _handlePrintChannelMessage(String messageBody) async {
+    try {
+      final Map<String, dynamic> data = json.decode(messageBody);
+      final String type = data['type']?.toString() ?? '';
+      
+      Uint8List pdfBytes;
+      String fileName;
+      
+      if (type == 'print_cards') {
+        final List<dynamic> cards = data['cards'] ?? [];
+        pdfBytes = await PdfGenerator.generateStudentCardsPdf(cards);
+        fileName = 'student_polling_cards.pdf';
+      } else if (type == 'print_response_sheet') {
+        final List<dynamic> questions = data['questions'] ?? [];
+        final String? questionImage = data['questionImage']?.toString();
+        pdfBytes = await PdfGenerator.generateResponseSheetPdf(questions, questionImage);
+        fileName = 'student_response_sheet.pdf';
+      } else {
+        print('[PrintChannel] Unknown print type: $type');
+        return;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$fileName');
+      await tempFile.writeAsBytes(pdfBytes);
+
+      await Share.shareXFiles([XFile(tempFile.path)], subject: 'Print ShowAnswer Document');
+    } catch (e) {
+      print('[PrintChannel Error] Failed to generate/share PDF: $e');
+    }
+  }
+
+  void _updateTitleFromUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final path = uri.path;
+    String newTitle = 'Admin Portal';
+    if (path.endsWith('index.html') || path == '/' || path.isEmpty) {
+      newTitle = 'Classroom Hub';
+    } else if (path.endsWith('generator.html')) {
+      newTitle = 'Card Generator';
+    } else if (path.endsWith('ocr_sheet.html')) {
+      newTitle = 'Print OCR Sheets';
+    } else if (path.endsWith('manage_teachers.html')) {
+      newTitle = 'Manage Teachers';
+    }
+    setState(() {
+      _appBarTitle = newTitle;
+    });
   }
 
   void _setupFilePicker(WebViewController controller) {
@@ -361,15 +419,24 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
     )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF09090B))
+      ..setUserAgent("ShowAnswerMobileWebView")
+      ..addJavaScriptChannel(
+        'PrintChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          _handlePrintChannelMessage(message.message);
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
+            _updateTitleFromUrl(url);
             setState(() {
               _isLoading = true;
             });
             _checkLogoutRedirect(url);
           },
           onPageFinished: (String url) {
+            _updateTitleFromUrl(url);
             setState(() {
               _isLoading = false;
             });
@@ -377,6 +444,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
           },
           onUrlChange: (UrlChange change) {
             if (change.url != null) {
+              _updateTitleFromUrl(change.url!);
               _checkLogoutRedirect(change.url!);
             }
           },
@@ -401,18 +469,45 @@ class _AdminPortalScreenState extends State<AdminPortalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF09090B),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            if (_controller != null) WebViewWidget(controller: _controller!),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4FC34)),
-                ),
-              ),
-          ],
+      appBar: AppBar(
+        title: Text(
+          _appBarTitle,
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 18.0),
         ),
+        backgroundColor: const Color(0xFF121214),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFFD4FC34)),
+            onPressed: () {
+              _controller?.reload();
+            },
+            tooltip: 'Reload Portal',
+          ),
+          IconButton(
+            icon: const Icon(Icons.home, color: Color(0xFFD4FC34)),
+            onPressed: () {
+              _controller?.loadRequest(Uri.parse('http://127.0.0.1:8000/index.html'));
+            },
+            tooltip: 'Home Dashboard',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Color(0xFFEF4444)),
+            onPressed: widget.onLogout,
+            tooltip: 'Logout',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          if (_controller != null) WebViewWidget(controller: _controller!),
+          if (_isLoading)
+            const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFD4FC34)),
+              ),
+            ),
+        ],
       ),
     );
   }

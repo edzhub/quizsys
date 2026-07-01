@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -895,7 +895,34 @@ Constraints:
 
       // Print response sheet
       btnPrint.addEventListener('click', () => {
-        window.print();
+        if (window.PrintChannel) {
+          const formattedQuestions = [];
+          for (let i = 0; i < activeQuestions.length; i++) {
+            const q = activeQuestions[i];
+            formattedQuestions.push({
+              text: `${i + 1}. ${q.question || ""}`,
+              choices: [
+                `A. ${q.optionA || ""}`,
+                `B. ${q.optionB || ""}`,
+                `C. ${q.optionC || ""}`,
+                `D. ${q.optionD || ""}`
+              ]
+            });
+          }
+          while (formattedQuestions.length < 5) {
+            const idx = formattedQuestions.length;
+            formattedQuestions.push({
+              text: `${idx + 1}. Question ${idx + 1}`,
+              choices: [`A. `, `B. `, `C. `, `D. `]
+            });
+          }
+          window.PrintChannel.postMessage(JSON.stringify({
+            type: 'print_response_sheet',
+            questions: formattedQuestions
+          }));
+        } else {
+          window.print();
+        }
       });
 
       // Redirect to scanner

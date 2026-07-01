@@ -90,10 +90,9 @@ window.addEventListener('DOMContentLoaded', () => {
         
         // Redirect based on role
         if (data.role === 'Admin') {
-          window.location.href = 'index.html';
+          window.location.href = '/admin/index.html';
         } else {
-          // Redirect to port 8002 for teacher (Quiz Setup)
-          window.location.href = 'http://' + window.location.hostname + ':8002/index.html';
+          window.location.href = '/teacher/index.html';
         }
       } else {
         otpErrorBanner.textContent = data.message || "Invalid or expired passcode.";

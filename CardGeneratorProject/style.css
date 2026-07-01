@@ -1498,26 +1498,9 @@ tr:last-child td {
     font-size: 0.82rem !important;
   }
 
-  /* Tab nav becomes scrollable row at bottom */
+  /* Tab nav is hidden on mobile screens to save space as requested */
   .tab-nav {
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    transform: none !important;
-    width: 100% !important;
-    border-radius: 0 !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    justify-content: flex-start !important;
-    padding: 6px 8px !important;
-    gap: 4px !important;
-  }
-
-  .tab-btn {
-    padding: 8px 14px !important;
-    font-size: 0.8rem !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
+    display: none !important;
   }
 
   .card {
@@ -1599,4 +1582,63 @@ tr:last-child td {
   .grid-scanner {
     grid-template-columns: 1fr !important;
   }
+}
+
+/* Mobile WebView adaptation rules to make it fit to page */
+.is-mobile-webview .app-header {
+  display: none !important;
+}
+
+.is-mobile-webview .tab-nav {
+  display: none !important;
+}
+
+.is-mobile-webview body {
+  padding: 8px !important;
+  background-image: none !important;
+  background-color: var(--bg-main) !important;
+}
+
+.is-mobile-webview #app-container {
+  padding-bottom: 20px !important;
+}
+
+/* Connection Status Banner Styling */
+.connection-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  animation: fadeIn 0.3s ease;
+  border: 1px solid var(--border-color);
+}
+
+.connection-status-banner.connected {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.connection-status-banner.disconnected {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.connection-status-banner.offline-mode {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background-color: currentColor;
 }

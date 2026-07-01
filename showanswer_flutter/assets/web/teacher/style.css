@@ -111,21 +111,7 @@ body {
 
 /* Floating Navigation Tabs matching the screenshot bottom navigation bar style */
 .tab-nav {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background: rgba(9, 9, 11, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  padding: 6px;
-  border-radius: 9999px;
-  display: flex;
-  gap: 6px;
-  box-shadow: 0 20px 40px -10px rgba(9, 9, 11, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: none !important;
 }
 
 .tab-btn {
@@ -1327,21 +1313,13 @@ tr:last-child td {
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
-    height: 100% !important;
-    overflow: hidden !important; /* Lock scrolling */
     background-color: var(--bg-main) !important;
   }
   body {
-    padding: 8px !important;
-    display: flex !important;
-    flex-direction: column !important;
+    padding: 12px !important;
     box-sizing: border-box !important;
   }
   #app-container {
-    height: 100% !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
     width: 100% !important;
   }
   .app-header {

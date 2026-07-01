@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <script>
+    // Detect mobile WebView and add class to HTML tag for styling adjustments
+    if (navigator.userAgent.includes("ShowAnswerMobileWebView")) {
+      document.documentElement.classList.add('is-mobile-webview');
+    }
+
     (function() {
       const token = localStorage.getItem('showanswer_session_token');
       const role = localStorage.getItem('showanswer_session_role');
@@ -21,6 +26,7 @@
     })();
   </script>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>ShowAnswer — Printable OCR Sheet</title>
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#09090b">
@@ -43,10 +49,51 @@
       width: 210mm;
       height: 297mm;
       box-sizing: border-box;
+      padding: 20mm;
       position: relative;
-      margin: 20px auto;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      margin: 0 auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      border-radius: 8px;
     }
+    
+    /* Responsive Control Panel and Layout for Mobile App view */
+    @media screen and (max-width: 600px) {
+      .control-panel {
+        flex-direction: column !important;
+        height: auto !important;
+        padding: 12px !important;
+        gap: 8px !important;
+        position: relative !important;
+      }
+      .control-title {
+        font-size: 0.95rem !important;
+      }
+      .control-actions {
+        flex-direction: column !important;
+        width: 100% !important;
+        gap: 6px !important;
+      }
+      .control-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        font-size: 0.8rem !important;
+        padding: 10px !important;
+      }
+      .sheet-page {
+        margin-top: 16px !important;
+        margin-bottom: 16px !important;
+        width: 95% !important;
+        height: auto !important;
+        aspect-ratio: 1 / 1.414 !important;
+        padding: 10mm !important;
+      }
+    }
+    
+    /* Hide bottom banner navigation inside APK WebView */
+    .tab-nav {
+      display: none !important;
+    }
+
     .anchor {
       position: absolute;
       width: 15mm;
@@ -305,7 +352,7 @@
       <button class="control-btn btn-clear" id="btn-clear-img" style="display: none;">
         ❌ Clear Question
       </button>
-      <button class="control-btn btn-print" onclick="window.print()">
+      <button class="control-btn btn-print" onclick="triggerOcrSheetPrint()">
         🖨️ Print Response Sheet
       </button>
     </div>
@@ -408,6 +455,8 @@
   </div>
 
   <script>
+    let loadedQuestions = [];
+
     async function startOcrSheet() {
       // 1. Fetch active quiz questions
       try {
@@ -417,6 +466,7 @@
         const response = await fetch(`${basePath}/api/quiz/active`);
         if (response.ok) {
           const questions = await response.json();
+          loadedQuestions = questions || [];
           if (questions && questions.length > 0) {
             for (let i = 0; i < 5; i++) {
               const titleEl = document.getElementById(`q${i+1}-title`);
@@ -521,6 +571,43 @@
     } else {
       startOcrSheet();
     }
+
+    function triggerOcrSheetPrint() {
+      if (window.PrintChannel) {
+        const formattedQuestions = [];
+        for (let i = 0; i < 5; i++) {
+          if (i < loadedQuestions.length) {
+            const q = loadedQuestions[i];
+            formattedQuestions.push({
+              text: `${i + 1}. ${q.question || ""}`,
+              choices: [
+                `A. ${q.optionA || ""}`,
+                `B. ${q.optionB || ""}`,
+                `C. ${q.optionC || ""}`,
+                `D. ${q.optionD || ""}`
+              ]
+            });
+          } else {
+            formattedQuestions.push({
+              text: `${i + 1}. Question ${i + 1}`,
+              choices: [`A. `, `B. `, `C. `, `D. `]
+            });
+          }
+        }
+        
+        // Extract base64 custom uploaded question image (if any)
+        const img = document.getElementById('uploaded-question-img');
+        const questionImage = img && img.src && img.src.startsWith('data:') ? img.src : null;
+        
+        window.PrintChannel.postMessage(JSON.stringify({
+          type: 'print_response_sheet',
+          questions: formattedQuestions,
+          questionImage: questionImage
+        }));
+      } else {
+        window.print();
+      }
+    }
   </script>
 
   <!-- Navigation Tabs -->
@@ -528,7 +615,7 @@
     <a href="index.html" class="tab-btn" style="text-decoration: none;">🏫 Classroom Hub</a>
     <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
     <a href="ocr_sheet.html" class="tab-btn active" style="text-decoration: none;">📄 OCR Templates</a>
-    <a href="#" onclick="const isUnified = window.location.pathname.startsWith('/admin/'); window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+    <a href="#" onclick="window.location.href = '/teacher/index.html';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
   </div>
   <script>
     if ('serviceWorker' in navigator) {

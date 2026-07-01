@@ -13,6 +13,11 @@ let scannerWindow = null;
 
 function startHub() {
   try {
+    checkPCConnection();
+  } catch (e) {
+    console.error("Error starting PC connection check:", e);
+  }
+  try {
     initClassList();
   } catch (e) {
     console.error("Error initializing class list:", e);
@@ -38,38 +43,48 @@ if (document.readyState === 'loading') {
 //  CLASS LIST MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 function initClassList() {
-  const hostname = window.location.hostname;
-  
-  // First attempt to load class list from the shared server database API
-  fetch(`/api/class`)
+  // ── STEP 1: Load from localStorage IMMEDIATELY (synchronous, no flicker) ──
+  // This guarantees the class list is always visible on page load.
+  // It only disappears if the user manually clicks "Clear Class List".
+  const saved = localStorage.getItem('showanswer_class_list');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.length > 0) {
+        classList = parsed;
+        updateClassTable();
+      }
+    } catch(e) {}
+  }
+
+  // ── STEP 2: Fetch from server in background to get the latest data ──
+  // If server has data, update the display. If server returns empty,
+  // keep showing what localStorage has (do NOT overwrite with empty).
+  fetch(`/api/class`, { cache: 'no-store' })
     .then(res => res.json())
     .then(serverClass => {
       if (serverClass && serverClass.length > 0) {
+        // Server has data — update display and refresh localStorage cache
         classList = serverClass;
         localStorage.setItem('showanswer_class_list', JSON.stringify(classList));
         updateClassTable();
         broadcastClassList();
-      } else {
-        // Fallback to local storage cache only
-        const saved = localStorage.getItem('showanswer_class_list');
-        if (saved) {
-          try { classList = JSON.parse(saved); } catch(e) { classList = []; }
-        } else {
-          classList = [];
-        }
-        updateClassTable();
+      } else if (classList.length > 0) {
+        // Server returned empty but we have local data — re-sync it to server
+        // This recovers from the case where the POST was lost during navigation
+        fetch(`/api/class`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(classList)
+        }).catch(err => console.warn('Re-sync to server failed:', err));
       }
+      // If both server and localStorage are empty, leave table as-is (empty)
     })
     .catch(err => {
-      console.warn("Class database API offline. Falling back to local storage:", err);
-      const saved = localStorage.getItem('showanswer_class_list');
-      if (saved) {
-        try { classList = JSON.parse(saved); } catch(e) { classList = []; }
-      } else {
-        classList = [];
-      }
-      updateClassTable();
+      // Server unreachable — already showing localStorage data from Step 1, nothing to do
+      console.warn("Class API unavailable, using cached localStorage data:", err);
     });
+
 
   // Add manual student
   document.getElementById('add-student-form').addEventListener('submit', (e) => {
@@ -321,4 +336,45 @@ function broadcastClassList() {
   if (generatorWindow) {
     sendClassList(generatorWindow, origin);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PC CONNECTION DIAGNOSTIC
+// ─────────────────────────────────────────────────────────────────────────────
+function checkPCConnection() {
+  const banner = document.getElementById('pc-connection-banner');
+  if (!banner) return;
+
+  fetch('/api/server-info')
+    .then(res => res.json())
+    .then(info => {
+      const serverIp = info.server_ip;
+      if (!serverIp) {
+        banner.className = 'connection-status-banner offline-mode';
+        banner.innerHTML = '<span class="status-dot"></span> <span>Running in <strong>Offline Mode</strong> (Local device database)</span>';
+        banner.style.display = 'flex';
+        return;
+      }
+
+      // Try fetching from laptop server via local proxy
+      fetch('/api/class', { cache: 'no-store' })
+        .then(res => {
+          if (res.ok) {
+            banner.className = 'connection-status-banner connected';
+            banner.innerHTML = `<span class="status-dot"></span> <span>Connected to PC Server at <strong>${serverIp}</strong></span>`;
+          } else {
+            throw new Error();
+          }
+          banner.style.display = 'flex';
+        })
+        .catch(() => {
+          banner.className = 'connection-status-banner disconnected';
+          banner.innerHTML = `<span class="status-dot"></span> <span>⚠️ Offline - PC Server at <strong>${serverIp}</strong> is unreachable. Make sure the server is running on the PC and both devices are on the same Wi-Fi.</span>`;
+          banner.style.display = 'flex';
+        });
+    })
+    .catch(() => {
+      // Standalone browser mode
+      banner.style.display = 'none';
+    });
 }

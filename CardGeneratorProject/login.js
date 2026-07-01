@@ -89,11 +89,10 @@ window.addEventListener('DOMContentLoaded', () => {
         hideToast();
         
         // Redirect based on role
-        const isUnified = window.location.pathname.startsWith('/admin/');
         if (data.role === 'Admin') {
-          window.location.href = isUnified ? '/admin/index.html' : 'index.html';
+          window.location.href = '/admin/index.html';
         } else {
-          window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002/index.html';
+          window.location.href = '/teacher/index.html';
         }
       } else {
         otpErrorBanner.textContent = data.message || "Invalid or expired passcode.";

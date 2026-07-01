@@ -1584,9 +1584,8 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
                 
-                # Delete existing answers for this specific question index to prevent duplicates on resubmissions
-                cursor.execute("DELETE FROM quiz_responses WHERE quiz_id = 'active' AND q_index = ?", (q_idx,))
-                
+                # Upsert each student's answer individually — only overwrites THIS student's
+                # previous answer for this question, preserving all other students' answers.
                 for sid, ans in responses_payload.items():
                     cursor.execute("""
                         INSERT INTO quiz_responses (quiz_id, q_index, student_id, answer)
@@ -1606,6 +1605,7 @@ class ScannerHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             return
+
 
         elif self.path == "/api/ocr/scan":
             content_length = int(self.headers['Content-Length'])

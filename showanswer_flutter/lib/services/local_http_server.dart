@@ -85,7 +85,7 @@ class LocalHttpServer {
     final prefs = await SharedPreferences.getInstance();
     final String? serverIp = prefs.getString('server_ip');
     if (serverIp != null && serverIp.isNotEmpty) {
-      final success = await _proxyRequest(request, serverIp, localPort, bodyBytes);
+      final success = await _proxyRequest(request, serverIp, 8000, bodyBytes);
       if (success) {
         return;
       }
@@ -100,42 +100,68 @@ class LocalHttpServer {
 
     // Roster API (POST - for Admin Classroom Hub client page to add/sync students)
     if (path == '/api/class' && request.method == 'POST') {
-      final Map<String, dynamic> data = _parseBody(bodyBytes) ?? {};
+      final parsed = _parseBody(bodyBytes);
       final rosterList = await _getMergedRoster(prefs);
 
-      final String? sid = data['student_id']?.toString().trim();
-      final String? name = data['name']?.toString().trim();
-      final String classVal = data['class']?.toString().trim().toUpperCase() ?? "10";
-      final String secVal = data['section']?.toString().trim().toUpperCase() ?? "A";
-
-      if (sid != null && name != null && sid.isNotEmpty && name.isNotEmpty) {
-        // Remove existing duplicate student id
-        rosterList.removeWhere((s) => s['student_id'] == sid);
-        
-        // Auto allocate next Marker ID
-        int nextMarkerId = 0;
-        while (rosterList.any((s) => s['marker_id'] == nextMarkerId)) {
-          nextMarkerId++;
+      if (parsed is List) {
+        // Clear and reload the roster when receiving the full array
+        rosterList.clear();
+        for (var item in parsed) {
+          if (item is Map) {
+            final String sid = item['student_id']?.toString().trim() ?? '';
+            final String name = item['name']?.toString().trim() ?? '';
+            final int markerId = int.tryParse(item['marker_id']?.toString() ?? '') ?? 0;
+            final String classVal = item['class']?.toString().trim().toUpperCase() ?? "10";
+            final String secVal = item['section']?.toString().trim().toUpperCase() ?? "A";
+            
+            if (sid.isNotEmpty && name.isNotEmpty) {
+              rosterList.add({
+                "marker_id": markerId,
+                "student_id": sid,
+                "name": name,
+                "class": classVal,
+                "section": secVal
+              });
+            }
+          }
         }
-
-        rosterList.add({
-          "marker_id": nextMarkerId,
-          "student_id": sid,
-          "name": name,
-          "class": classVal,
-          "section": secVal
-        });
         await prefs.setString('local_roster', json.encode(rosterList));
+      } else if (parsed is Map) {
+        // Support adding a single student object
+        final String? sid = parsed['student_id']?.toString().trim();
+        final String? name = parsed['name']?.toString().trim();
+        final String classVal = parsed['class']?.toString().trim().toUpperCase() ?? "10";
+        final String secVal = parsed['section']?.toString().trim().toUpperCase() ?? "A";
+
+        if (sid != null && name != null && sid.isNotEmpty && name.isNotEmpty) {
+          rosterList.removeWhere((s) => s['student_id'] == sid);
+          int nextMarkerId = 0;
+          while (rosterList.any((s) => s['marker_id'] == nextMarkerId)) {
+            nextMarkerId++;
+          }
+
+          rosterList.add({
+            "marker_id": nextMarkerId,
+            "student_id": sid,
+            "name": name,
+            "class": classVal,
+            "section": secVal
+          });
+          await prefs.setString('local_roster', json.encode(rosterList));
+        }
       }
+
       _sendJsonResponse(request, {"status": "success"});
       return;
     }
 
     // Server Info (GET)
     if (path == '/api/server-info' && request.method == 'GET') {
+      final String? serverIp = prefs.getString('server_ip');
       _sendJsonResponse(request, {
         "local_ip": "127.0.0.1",
-        "port": localPort
+        "port": localPort,
+        "server_ip": serverIp ?? ""
       });
       return;
     }
@@ -290,9 +316,11 @@ class LocalHttpServer {
       final Map<String, dynamic> responses = data['responses'] ?? {};
 
       if (qIndex != null) {
-        activeQuizResponses.removeWhere((resp) => resp['q_index'] == qIndex);
-        
+        // Remove only THIS student's previous response for this question (not all students)
         responses.forEach((sid, val) {
+          activeQuizResponses.removeWhere(
+            (resp) => resp['q_index'] == qIndex && resp['student_id'] == sid
+          );
           activeQuizResponses.add({
             "student_id": sid,
             "q_index": qIndex,
@@ -506,9 +534,21 @@ class LocalHttpServer {
       }
       
       if (decoded is List) {
-        return decoded.map((val) => Map<String, dynamic>.from(val)).toList();
+        final List<Map<String, dynamic>> list = [];
+        for (var item in decoded) {
+          if (item is Map) {
+            final Map<String, dynamic> map = {};
+            item.forEach((key, val) {
+              map[key.toString()] = val;
+            });
+            list.add(map);
+          }
+        }
+        return list;
       }
-    } catch (_) {}
+    } catch (e, stackTrace) {
+      print("[Server Roster Error] Failed to decode local roster: $e\n$stackTrace");
+    }
 
     return [];
   }

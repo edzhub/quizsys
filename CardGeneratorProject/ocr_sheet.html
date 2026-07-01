@@ -2,6 +2,11 @@
 <html lang="en">
 <head>
   <script>
+    // Detect mobile WebView and add class to HTML tag for styling adjustments
+    if (navigator.userAgent.includes("ShowAnswerMobileWebView")) {
+      document.documentElement.classList.add('is-mobile-webview');
+    }
+
     (function() {
       const token = localStorage.getItem('showanswer_session_token');
       const role = localStorage.getItem('showanswer_session_role');
@@ -529,7 +534,7 @@
     <a href="generator.html" class="tab-btn" style="text-decoration: none;">📇 Card Generator</a>
     <a href="ocr_sheet.html" class="tab-btn active" style="text-decoration: none;">📄 OCR Templates</a>
     <a href="manage_teachers.html" class="tab-btn" style="text-decoration: none;">👩‍🏫 Manage Teachers</a>
-    <a href="#" onclick="const isUnified = window.location.pathname.startsWith('/admin/'); window.location.href = isUnified ? '/teacher/index.html' : 'http://' + window.location.hostname + ':8002';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
+    <a href="#" onclick="window.location.href = '/teacher/index.html';" class="tab-btn" style="text-decoration: none;">📹 Switch to Teacher Portal</a>
   </div>
   <script>
     if ('serviceWorker' in navigator) {

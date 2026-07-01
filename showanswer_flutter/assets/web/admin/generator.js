@@ -178,42 +178,50 @@ function renderPreviewCard(markerId) {
 }
 
 function generateAndPrintCards() {
-  const printContainer = document.getElementById('print-container');
-  printContainer.innerHTML = '';
+  if (window.PrintChannel) {
+    const dict = new AR.Dictionary('DICT_4X4_1000');
+    const sortedClass = [...classList].sort((a, b) => a.marker_id - b.marker_id);
+    const cardsPayload = sortedClass.map(student => {
+      const codeBin = dict.codeList[student.marker_id];
+      return {
+        name: student.name,
+        student_id: student.student_id,
+        code: codeBin
+      };
+    });
+    window.PrintChannel.postMessage(JSON.stringify({
+      type: 'print_cards',
+      cards: cardsPayload
+    }));
+  } else {
+    const printContainer = document.getElementById('print-container');
+    printContainer.innerHTML = '';
+    const dict = new AR.Dictionary('DICT_4X4_1000');
+    const sortedClass = [...classList].sort((a, b) => a.marker_id - b.marker_id);
 
-  const dict = new AR.Dictionary('DICT_4X4_1000');
-  
-  // Sort cards by marker ID
-  const sortedClass = [...classList].sort((a, b) => a.marker_id - b.marker_id);
-
-  sortedClass.forEach(student => {
-    const page = document.createElement('div');
-    page.className = 'print-card-page';
-    page.innerHTML = `
-      <div class="print-card-header">
-        <h1>${student.name}</h1>
-        <p>Student ID: ${student.student_id}</p>
-      </div>
-
-      <!-- Edge labels positioned relative to the ArUco container -->
-      <div class="print-aruco-wrapper">
-        <div class="print-label-edge print-edge-top">A</div>
-        <div class="print-label-edge print-edge-right">B</div>
-        <div class="print-label-edge print-edge-bottom">C</div>
-        <div class="print-label-edge print-edge-left">D</div>
-        
-        <div class="print-aruco-container">
-          ${dict.generateSVG(student.marker_id)}
+    sortedClass.forEach(student => {
+      const page = document.createElement('div');
+      page.className = 'print-card-page';
+      page.innerHTML = `
+        <div class="print-card-header">
+          <h1>${student.name}</h1>
+          <p>Student ID: ${student.student_id}</p>
         </div>
-      </div>
-
-      <div class="print-card-footer">
-        <div class="hint-text">↑ Upright = A  |  → Rotate 90° CW = B  |  ↓ Flip = C  |  ← Rotate 90° CCW = D</div>
-      </div>
-    `;
-    printContainer.appendChild(page);
-  });
-
-  // Open native print panel
-  window.print();
+        <div class="print-aruco-wrapper">
+          <div class="print-label-edge print-edge-top">A</div>
+          <div class="print-label-edge print-edge-right">B</div>
+          <div class="print-label-edge print-edge-bottom">C</div>
+          <div class="print-label-edge print-edge-left">D</div>
+          <div class="print-aruco-container">
+            ${dict.generateSVG(student.marker_id)}
+          </div>
+        </div>
+        <div class="print-card-footer">
+          <div class="hint-text">↑ Upright = A  |  → Rotate 90° CW = B  |  ↓ Flip = C  |  ← Rotate 90° CCW = D</div>
+        </div>
+      `;
+      printContainer.appendChild(page);
+    });
+    window.print();
+  }
 }

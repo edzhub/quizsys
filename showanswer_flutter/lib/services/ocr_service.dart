@@ -10,7 +10,7 @@ class OcrService {
     required String serverIp,
     required String base64Image,
   }) async {
-    final String targetUrl = 'http://$serverIp:8002/api/ocr/scan';
+    final String targetUrl = 'http://$serverIp:8000/api/ocr/scan';
 
     try {
       // Decode and resize the image before sending
